@@ -406,3 +406,36 @@ bash /tmp/ioho-ai-monitor/deploy/update-central-v011.sh
 Lo script crea un backup del codice toccato, ricostruisce e riavvia solo
 il servizio `api`, poi verifica `/health`. Database, token,
 integrazione HTTPS Zabbix, scheduler e agenti sono invariati.
+
+
+## v0.12 — CPU Zabbix nella lista server
+
+La home, nella colonna **Server / collector**, mostra ora:
+`CPU Zabbix 34,3% · picco 40,7% · report 06/11 14:02 UTC`
+(valori illustrativi). Il valore principale è l'**ultimo campione CPU**
+dell'ultimo report `access_check` completato; il picco è riferito agli
+ultimi 10 minuti campionati da Zabbix. I valori vengono recuperati dal
+campo `zabbix_cpu` **già salvato nel payload del job** dal worker v0.9.
+Non vengono eseguite richieste Zabbix durante il caricamento della home.
+Il dato cambia automaticamente dopo il successivo controllo accessi
+orario (o quando viene premuta l'icona di analisi accessi).
+
+Quando il report ha oltre 75 minuti la CPU è marcata `storico` e il
+valore è attenuato; non deve essere confuso con la CPU attuale. Per
+report precedenti all'integrazione v0.9 oppure con Zabbix non disponibile,
+la home mostra `CPU Zabbix — nessun dato nell'ultimo report accessi`.
+Non viene mai simulato un utilizzo di CPU pari a zero.
+
+**Deploy: solo console API** (worker Zabbix, DB, agenti e scheduler invariati):
+
+```bash
+clear
+git -C /tmp/ioho-ai-monitor pull --ff-only origin main
+test "$(cat /tmp/ioho-ai-monitor/VERSION)" = "0.12"
+bash /tmp/ioho-ai-monitor/deploy/update-central-v012.sh
+```
+
+Se il valore rimane assente, aprire il report Accessi dell'host:
+se la sezione CPU segnala `item_missing` o `host_missing` va corretta
+la configurazione Zabbix di quell'host. Se il report è antecedente alla
+v0.9, avviare una nuova analisi accessi.
