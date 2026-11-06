@@ -25,6 +25,13 @@
 .traffic-table td,.traffic-table th{font-size:.77rem;padding:7px 5px}
 @media(max-width:850px){.traffic-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:500px){.traffic-stats{grid-template-columns:1fr 1fr}}
+
+.analysis-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.analysis-actions form{margin:0}
+.analysis-btn{background:#1a4271;border:1px solid #3979b2;border-radius:9px;color:#f4f9ff;padding:10px 13px;font:inherit;font-size:.88rem;font-weight:650;cursor:pointer}
+.analysis-btn:hover{background:#27558b}
+.analysis-btn:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.analysis-btn.compact{padding:6px 9px;font-size:.76rem}
 </style></head><body>
 <header class="topbar"><a class="brand" href="/">IOHO <small>AI Monitor</small></a><nav><a href="/">Panoramica</a><a href="/">Server e incidenti</a></nav></header>
 <main>{% block content %}{% endblock %}<div class="foot">IOHO AI Monitor · diagnosi assistita, non interventi automatici. Dati aggiornati ogni 45 secondi. L'assenza di evidenze non esclude incidenti.</div></main>
