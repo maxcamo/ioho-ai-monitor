@@ -26,6 +26,35 @@
     <div class="http-kpi"><span>Risposte 5xx</span><strong class="{{ 'critical' if t.errors else '' }}">{{ t.errors }}</strong><small>{{ t.errors_pct }}% delle richieste</small></div>
     <div class="http-kpi"><span>403 / 410 / 429 / 444</span><strong>{{ t.blocked }}</strong><small>Non tutte raggiungono Magento</small></div>
   </div>
+  <div class="http-cpu-block" id="http-cpu">
+    <div class="split"><h3>CPU server (Zabbix) e traffico HTTP</h3><span class="sub">Stesso intervallo dell'access.log · dati storici, non live</span></div>
+    {% set cpu = traffic_report.cpu %}
+    {% if cpu.status == 'ok' %}
+    <div class="http-cpu-kpis">
+      <div><span class="sub">CPU media (campioni)</span><strong>{{ cpu.avg_pct }}%</strong></div>
+      <div><span class="sub">Picco CPU</span><strong>{{ cpu.peak_pct }}%</strong></div>
+      <div><span class="sub">Ultimo valore nella finestra</span><strong>{{ cpu.last_pct }}%</strong></div>
+      <div><span class="sub">Campioni Zabbix</span><strong>{{ cpu.sample_count }}</strong></div>
+    </div>
+    <div class="sub">Item: <code>{{ cpu.item_name }}</code> · <code>{{ cpu.item_key }}</code> · Una media di campioni disponibili, non necessariamente di tutti i minuti.</div>
+    <div class="http-scroll"><table class="table http-table http-cpu-table">
+      <thead><tr><th>Minuto UTC</th><th>Richieste/min</th><th>Grafico richieste</th><th>CPU %</th><th>Grafico CPU</th></tr></thead><tbody>
+      {% for row in t.timeline %}<tr>
+        <td class="mono">{{ row.minute[11:] }}</td><td><strong>{{ row.count }}</strong></td>
+        <td><div class="http-bar"><i style="width:{{ row.width }}%"></i></div></td>
+        <td>{% if row.cpu_pct is not none %}{{ row.cpu_pct }}%{% else %}<span class="sub">—</span>{% endif %}</td>
+        <td>{% if row.cpu_pct is not none %}<div class="http-bar http-cpu-bar"><i style="width:{{ row.cpu_pct }}%"></i></div>{% else %}<span class="sub">Nessun campione</span>{% endif %}</td>
+      </tr>{% else %}<tr><td colspan="5">Nessuna richiesta registrata nei minuti del campione</td></tr>{% endfor %}
+      </tbody></table></div>
+    <p class="sub">Una sovrapposizione di picchi CPU e richieste fornisce un indizio, non prova che il traffico HTTP abbia causato il carico.</p>
+    {% elif cpu.status == 'not_configured' %}
+    <p class="sub">Zabbix CPU non configurato: su ai-control impostare ZABBIX_API_URL e ZABBIX_API_TOKEN (sola lettura). Il report accessi resta utilizzabile.</p>
+    {% elif cpu.status == 'not_collected' %}
+    <p class="sub">Audit precedente all'integrazione CPU Zabbix: avvia un nuovo controllo accessi per raccogliere lo storico corrispondente.</p>
+    {% else %}
+    <p class="sub">CPU Zabbix non disponibile per questo audit: {{ cpu.message or 'nessun dato leggibile' }}. I dati di access.log restano validi indipendentemente da Zabbix.</p>
+    {% endif %}
+  </div>
   <div class="http-findings"><h3>Cosa emerge dai log</h3><ul>{% for text in t.findings %}<li>{{ text }}</li>{% endfor %}</ul>
     <p class="sub">Sono indicatori automatici, non la prova di un attacco: IP e User-Agent possono essere influenzati dal proxy o falsificati. Controllare Zabbix prima di attribuire il carico ai crawler.</p>
   </div>
