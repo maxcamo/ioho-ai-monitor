@@ -120,7 +120,7 @@ def test_home_has_badge_small_update_and_button_but_not_description():
     overview = r.text.split("Stato per tipologia", 1)[1].split("Attività recente", 1)[0]
     assert "TEST-SUMMARY-MUST-BE-ONLY-IN-DETAILS" not in overview
     assert 'class="domain-updated"' in overview
-    assert "Ultimo aggiornamento:" in overview
+    assert "Ultimo aggiornamento:" not in overview
     assert "Analizza applicativi 24h" in overview
     assert "Analizza accessi 10m" in overview
     assert 'status-report-link' in overview
