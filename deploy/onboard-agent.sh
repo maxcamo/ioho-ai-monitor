@@ -60,6 +60,7 @@ PY
 unset IOHO_AGENT_TOKEN
 install -d -m 755 /opt/ioho-agent
 install -o root -g root -m 644 "$ROOT/agent/collector.py" /opt/ioho-agent/collector.py
+install -o root -g root -m 644 "$ROOT/agent/traffic_analysis.py" /opt/ioho-agent/traffic_analysis.py
 install -o root -g "$GRP" -m 640 "$TMP/config.json" "$CFG"
 install -o root -g root -m 644 "$TMP/console.crt" "$CRT"
 cat > "$UNIT" <<EOF
