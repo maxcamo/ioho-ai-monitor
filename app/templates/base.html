@@ -2,7 +2,7 @@
 <html lang="it"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="robots" content="noindex,nofollow"/>
-<meta http-equiv="refresh" content="45"/>
+<meta http-equiv="refresh" content="{% block refresh_seconds %}45{% endblock %}"/>
 <title>{% block title %}IOHO AI Monitor{% endblock %}</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--bg:#0b1120;--panel:#111c30;--line:#24334d;--dim:#94a6c0;--fg:#e9f1ff;--blue:#75b8ff;--green:#49d6a4;--amber:#ffcc6f;--red:#fa7282}
@@ -62,6 +62,40 @@
 .domain-recheck svg{display:block;width:16px;height:16px}
 .domain-cell .domain-updated{margin-top:4px}
 .domain-table .server-health{margin-top:5px}
+/* Widget CPU Zabbix: colonnine cromatiche, righe basse, evidenza di carico. */
+.home-refresh{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:.69rem}
+.home-refresh svg{flex:none}
+.domain-table{min-width:1030px;table-layout:fixed}
+.domain-table th:first-child{width:17%}
+.domain-table th:nth-child(2),.domain-table th:nth-child(3){width:17%}
+.domain-table th:nth-child(4){width:22%}
+.domain-table th:nth-child(5),.domain-table th:nth-child(6),.domain-table th:nth-child(7){width:7%}
+.domain-table th:nth-child(8){width:6%}
+.domain-table th,.domain-table td{padding:6px 7px;font-size:.76rem;vertical-align:middle}
+.domain-table .server-health{margin-top:2px;font-size:.72rem}
+.domain-table .domain-result{gap:5px;margin:0}
+.domain-table .domain-updated{font-size:.65rem;margin-top:2px;line-height:1.25}
+.domain-table .domain-recheck{width:24px;height:24px;border-radius:6px}
+.domain-table .domain-recheck svg{width:14px;height:14px}
+.domain-table .pill{font-size:.68rem;padding:2px 7px}
+.domain-table .live-cpu-cell{white-space:nowrap}
+.live-cpu-row{display:flex;align-items:center;gap:8px;min-width:0}
+.cpu-segments{height:16px;display:inline-flex;align-items:stretch;gap:2px;padding:2px;background:#07121d;border:1px solid #253a50;border-radius:4px;min-width:0}
+.cpu-segment{display:block;width:5px;min-width:3px;max-width:5px;border-radius:1px;background:#243241}
+.cpu-segment.cpu-on.cpu-green{background:#4bd65b}
+.cpu-segment.cpu-on.cpu-yellow{background:#f5c044}
+.cpu-segment.cpu-on.cpu-red{background:#ef656c}
+.live-cpu-value{font-variant-numeric:tabular-nums;font-size:.85rem}
+.live-cpu-time{font-size:.62rem;color:var(--dim);line-height:1.2;margin-top:2px}
+.live-metric{font-variant-numeric:tabular-nums;white-space:nowrap}
+.domain-table tr.cpu-row-warning > td{background:rgba(245,192,68,.065)}
+.domain-table tr.cpu-row-warning > td.live-cpu-cell{background:rgba(245,192,68,.18)}
+.domain-table tr.cpu-row-critical > td{background:rgba(239,101,108,.08)}
+.domain-table tr.cpu-row-critical > td.live-cpu-cell{background:rgba(239,101,108,.22)}
+.domain-table tr.cpu-row-warning:hover > td{background:rgba(245,192,68,.12)}
+.domain-table tr.cpu-row-critical:hover > td{background:rgba(239,101,108,.13)}
+@media(max-width:1150px){.domain-table{min-width:1000px}.domain-table th:nth-child(4){width:24%}.domain-table th:first-child{width:15%}}
+
 /* v0.12: CPU Zabbix dell'ultimo report accessi; sempre con data e stato storico. */
 .server-cpu{margin-top:9px;font-size:.76rem;color:var(--fg);line-height:1.5}
 .server-cpu-label{color:var(--dim);margin-right:5px}
@@ -128,5 +162,5 @@
 @media(max-width:600px){.http-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.http-table{min-width:500px}.http-kpi strong{font-size:1.35rem}}
 </style></head><body>
 <header class="topbar"><a class="brand" href="/">IOHO <small>AI Monitor</small></a><nav><a href="/">Panoramica</a><a href="/">Server e incidenti</a></nav></header>
-<main>{% block content %}{% endblock %}<div class="foot">IOHO AI Monitor · diagnosi assistita, non interventi automatici. Dati aggiornati ogni 45 secondi. L'assenza di evidenze non esclude incidenti.</div></main>
+<main>{% block content %}{% endblock %}<div class="foot">IOHO AI Monitor · diagnosi assistita, non interventi automatici. Panoramica ogni 30 secondi; altre pagine ogni 45 secondi. L'assenza di evidenze non esclude incidenti.</div></main>
 </body></html>
