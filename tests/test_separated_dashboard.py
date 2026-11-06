@@ -53,6 +53,12 @@ def test_domain_separation_and_time_freshness():
         job = db.get(Job, access_job.id)
         job.updated_at = utcnow() - timedelta(minutes=22)
     with Session() as db:
+        assert domain_result(db, sid, 'access', utcnow())['status'] == 'critical'
+        assert domain_result(db, sid, 'access', utcnow())['outdated'] is False
+    with Session.begin() as db:
+        job = db.get(Job, access_job.id)
+        job.updated_at = utcnow() - timedelta(minutes=76)
+    with Session() as db:
         assert domain_result(db, sid, 'access', utcnow())['status'] == 'unknown'
         assert domain_result(db, sid, 'access', utcnow())['outdated'] is True
         assert domain_result(db, sid, 'app', utcnow())['status'] == 'warning'
