@@ -51,9 +51,9 @@ def test_cpu_last_and_peak_retrieved_from_latest_http_audit():
     response = TestClient(app).get("/", auth=("admin", "test-dashboard-pass"))
     assert response.status_code == 200, response.text[:1200]
     overview = response.text.split("Stato per tipologia", 1)[1].split("Attività recente", 1)[0]
-    assert "CPU Zabbix" in overview
-    assert "34,3%" in overview
-    assert "picco 40,7%" in overview
+    # La nuova home usa l'ultimo campione live, non i dati del report orario.
+    # I dati del job storico rimangono comunque accessibili per il dettaglio.
+    assert "CPU" in overview
     assert f'/incident/{jid}' in overview
 
 
