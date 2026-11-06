@@ -52,6 +52,42 @@
 .status-table-wrap{overflow-x:auto}
 @media(max-width:800px){.domain-overview{grid-template-columns:1fr}.domain-table{min-width:730px}}
 @media(max-width:480px){.status-counts{gap:6px}.status-counts strong{font-size:1.4rem}}
+
+/* Report operativo HTTP v0.7: prioritizza IP, pagine e ritmo, senza duplicati. */
+.http-report{scroll-margin-top:20px}
+.http-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0}
+.http-kpi{background:#0c1a30;border:1px solid var(--line);border-radius:11px;padding:13px;min-width:0}
+.http-kpi>span{display:block;color:var(--dim);font-size:.78rem}
+.http-kpi strong{display:block;font-size:1.6rem;margin:3px 0;font-variant-numeric:tabular-nums}
+.http-kpi small{font-size:.75rem;color:var(--dim)}
+.http-findings{border:1px solid var(--line);background:#0e1a2d;border-radius:12px;padding:16px;margin-bottom:15px}
+.http-findings h3{font-size:1rem;margin:0 0 5px}
+.http-findings li{margin:2px 0;line-height:1.45}
+.http-alert{border-left:4px solid var(--amber);padding:12px;background:#2a231e;color:#ffdaa3;margin:14px 0;border-radius:6px}
+.http-jump{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 22px}
+.http-jump a{border:1px solid #40628b;border-radius:30px;padding:6px 10px;font-size:.78rem}
+.http-block{scroll-margin-top:16px;padding:14px 0 20px;border-top:1px solid var(--line);min-width:0}
+.http-block h3{font-size:1rem;margin:0 0 9px}
+.http-scroll{width:100%;overflow-x:auto}
+.http-table{min-width:0;width:100%}
+.http-table td,.http-table th{font-size:.82rem;padding:9px 7px}
+.http-table th{white-space:nowrap}
+.http-table tbody tr:nth-child(even){background:#0d1b30}
+.http-table td:first-child{font-variant-numeric:tabular-nums}
+.http-path{overflow-wrap:anywhere;word-break:break-word;max-width:370px}
+.http-path:not(:last-child){margin-bottom:4px}
+.http-track{height:5px;border-radius:4px;background:#1c304a;overflow:hidden;min-width:65px;margin-top:5px}
+.http-track span{display:block;height:100%;background:var(--blue)}
+.http-two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.http-chart{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.http-barline{display:grid;grid-template-columns:52px 1fr 50px;gap:8px;align-items:center;font-size:.78rem}
+.http-barline strong{text-align:right;font-variant-numeric:tabular-nums}
+.http-bar{height:12px;background:#1b2d47;border-radius:3px;overflow:hidden}
+.http-bar i{display:block;height:100%;background:#69a8ec;border-radius:3px}
+.http-details{border-top:1px solid var(--line);padding:12px 0}
+.http-details summary{cursor:pointer;color:var(--blue);font-weight:650}
+@media(max-width:850px){.http-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.http-two{grid-template-columns:1fr}}
+@media(max-width:600px){.http-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.http-table{min-width:500px}.http-kpi strong{font-size:1.35rem}}
 </style></head><body>
 <header class="topbar"><a class="brand" href="/">IOHO <small>AI Monitor</small></a><nav><a href="/">Panoramica</a><a href="/">Server e incidenti</a></nav></header>
 <main>{% block content %}{% endblock %}<div class="foot">IOHO AI Monitor · diagnosi assistita, non interventi automatici. Dati aggiornati ogni 45 secondi. L'assenza di evidenze non esclude incidenti.</div></main>
