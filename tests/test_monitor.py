@@ -110,3 +110,22 @@ def test_ai_structured_response_with_mock(monkeypatch):
     assert '192.0.2.44' not in captured['input'][1]['content']
     assert 'secret-token' not in captured['input'][1]['content']
     assert captured['store'] is False
+
+
+def test_collector_ioho_proxy_log_format(tmp_path):
+    """IOHO: lista IP X-Forwarded-For e host=... prima della request."""
+    now = datetime.now().astimezone().strftime('%d/%b/%Y:%H:%M:%S %z')
+    access = tmp_path / 'access.log.1'
+    access.write_text(
+        f'192.0.2.10, 203.0.113.1 - - [{now}] host="originalbrands.store" '
+        '"GET /shopby/?cat=12 HTTP/1.1" 410 14 "-" "Mozilla/5.0"\n'
+        f'192.0.2.10, 203.0.113.1 - - [{now}] host="originalbrands.store" '
+        '"GET /product HTTP/1.1" 200 1316611 "-" "Googlebot"\n'
+        f'2001:db8::1 - - [{now}] "POST /checkout HTTP/2.0" 502 100 "-" "curl/8.1"\n'
+    )
+    data = collect({'access_logs': [str(access)], 'app_logs': [], 'nginx_error_logs': []}, 20)
+    assert data['access']['total'] == 3
+    assert data['access']['statuses'] == {'410': 1, '200': 1, '502': 1}
+    assert dict(data['access']['top_clients'])['192.0.2.10'] == 2
+    assert data['coverage']['access_unparsed_lines'] == 0
+    assert data['coverage']['errors'] == []
