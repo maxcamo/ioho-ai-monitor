@@ -164,6 +164,12 @@ def display_servers(db):
         result.append({"id": s.id, "name": s.name, "zabbix_host": s.zabbix_host,
                        "stale": stale, "app": domain_result(db, s.id, "app", now),
                        "access": domain_result(db, s.id, "access", now)})
+    # Ordina dal peggiore dei due esiti aggiornati: Critical, Warning, OK,
+    # infine Non verificato/Da aggiornare. Parita' in ordine alfabetico.
+    severity_order = {"critical": 0, "warning": 1, "ok": 2, "unknown": 3}
+    result.sort(key=lambda row: (
+        min(severity_order.get(row[scope]["status"], 3) for scope in ("app", "access")),
+        row["name"].casefold()))
     return result
 
 
