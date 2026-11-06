@@ -1,0 +1,21 @@
+[Unit]
+Description=IOHO AI Monitor Collector (read-only)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ioho-monitor
+Group=ioho-monitor
+ExecStart=/usr/bin/python3 /opt/ioho-agent/collector.py /etc/ioho-ai-agent.json
+Restart=always
+RestartSec=20
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

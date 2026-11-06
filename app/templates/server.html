@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ server.name }} · IOHO AI Monitor{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">Panoramica</a> / {{ server.name }}</div>
+<div class="split"><div><div class="eyebrow">Server Magento</div><h1>{{ server.name }}</h1><div class="sub">Host tecnico Zabbix: <span class="mono">{{ server.zabbix_host }}</span></div></div><span class="pill {{ server.last_status }}">{{ server.last_status }}</span></div>
+<div class="panel"><h2>Storico analisi</h2><table class="table"><thead><tr><th>Data UTC</th><th>Tipo</th><th>Allarme</th><th>Elaborazione</th><th>Priorità</th></tr></thead><tbody>{% for j in jobs %}<tr><td><a href="/incident/{{ j.id }}">{{ j.created_at.strftime('%d/%m/%Y %H:%M') }}</a></td><td>{{ j.kind }}</td><td>{{ j.incident_name }}</td><td>{{ j.state }}</td><td>{% if j.analysis %}<span class="pill {{ j.analysis.severity }}">{{ j.analysis.severity }}</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="5">Nessun evento.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

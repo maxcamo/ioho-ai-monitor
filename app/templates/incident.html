@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Incidente #{{ job.id }} · IOHO AI Monitor{% endblock %}
+{% block content %}
+<div class="breadcrumb"><a href="/">Panoramica</a> / <a href="/server/{{ server.id }}">{{ server.name }}</a> / Analisi #{{ job.id }}</div>
+<div class="split"><div><div class="eyebrow">{{ 'Trigger Zabbix' if job.kind == 'incident' else 'Controllo notturno / manuale' }} · {{ job.created_at.strftime('%d/%m/%Y %H:%M UTC') }}</div><h1>{{ job.incident_name or 'Analisi tecnica' }}</h1><div class="sub">{{ server.name }} · job {{ job.state }}</div></div><span class="pill {{ analysis.severity if analysis else 'unknown' }}">{{ analysis.severity if analysis else 'IN ELABORAZIONE' }}</span></div>
+{% if analysis %}
+<section class="panel"><div class="eyebrow">Diagnosi {{ 'OpenAI' if analysis.ai_used else 'basata su regole (AI non utilizzata)' }}</div><h2 style="margin-top:8px">{{ diagnosis.summary }}</h2><p><strong>Possibile causa:</strong> {{ diagnosis.probable_cause }}</p><p><strong>Confidenza AI:</strong> {{ diagnosis.confidence }}</p>
+<div class="grid"><div class="inner"><h3>Evidenze</h3><ul>{% for x in diagnosis.evidence %}<li>{{ x }}</li>{% else %}<li>Non disponibili</li>{% endfor %}</ul></div><div class="inner"><h3>Azioni consigliate</h3><ol>{% for x in diagnosis.recommendations %}<li>{{ x }}</li>{% else %}<li>Verificare direttamente il server</li>{% endfor %}</ol></div></div>
+{% if diagnosis.limitations %}<h3 style="margin-top:18px">Limiti della diagnosi</h3><ul>{% for x in diagnosis.limitations %}<li class="sub">{{ x }}</li>{% endfor %}</ul>{% endif %}
+</section>
+{% elif job.error %}<section class="panel"><p class="error">{{ job.error }}</p></section>
+{% else %}<section class="panel"><p>Raccolta o analisi in corso. La pagina si aggiorna automaticamente.</p></section>{% endif %}
+{% if data %}
+<section class="panel"><h2>Indicatori osservati</h2><div class="grid"><div class="inner"><div class="eyebrow">Richieste Nginx esaminate</div><div class="number">{{ data.access.total if data.access else '—' }}</div><div class="sub">Finestra: {{ data.window_minutes }} minuti</div></div><div class="inner"><div class="eyebrow">Richieste su URL filtrate</div><div class="number">{{ data.access.filtered_requests if data.access else '—' }}</div><div class="sub">UA bot noti: {{ data.access.known_bot_user_agent_hits if data.access else '—' }}</div></div></div>
+{% if data.coverage %}<p class="sub">Copertura: {{ data.coverage.matched }} file analizzati; {% if data.coverage.truncated %}<strong class="warning">lettura parziale</strong>{% else %}nessun troncamento rilevato{% endif %}; access log {% if data.coverage.no_access_log %}<strong class="error">non disponibile</strong>{% else %}presente{% endif %}.</p>{% endif %}
+<div class="grid"><div class="inner"><h3>HTTP status</h3><table class="table" style="min-width:0">{% for code,n in data.access.statuses.items() if data.access %}<tr><td>{{ code }}</td><td>{{ n }}</td></tr>{% endfor %}</table></div><div class="inner"><h3>Processi CPU (istantanea ps)</h3><table class="table" style="min-width:0"><thead><tr><th>Processo</th><th>%CPU*</th></tr></thead>{% for p in data.processes %}<tr><td class="mono">{{ p.command }}</td><td>{{ p.cpu_percent }}</td></tr>{% endfor %}</table><div class="sub">*%CPU ps è una media, non il valore istantaneo Zabbix.</div></div></div></section>
+<section class="panel"><h2>Traffico: URL e IP principali</h2><div class="grid"><div class="inner"><h3>URL normalizzate (query senza valori)</h3><ol>{% for pair in data.access.top_paths if data.access %}<li class="mono">{{ pair[0] }} <strong>({{ pair[1] }})</strong></li>{% endfor %}</ol></div><div class="inner"><h3>IP sorgente (visibili solo in console autenticata)</h3><ol>{% for pair in data.access.top_clients if data.access %}<li class="mono">{{ pair[0] }} <strong>({{ pair[1] }})</strong></li>{% endfor %}</ol></div></div></section>
+<section class="panel">
+  <div class="split"><div><h2 style="margin:0">Errori applicativi per frequenza</h2>
+  <p class="sub" style="margin-top:6px">Una riga per problema, ordinata dal più frequente. Apri il dettaglio per vedere gli esempi e gli orari.</p></div>
+  <span class="pill unknown">{{ error_groups|length }} tipologie</span></div>
+  {% if data.coverage and data.coverage.truncated %}
+  <p class="sub warning">Lettura parziale: i conteggi rappresentano solo le occorrenze osservate nei file campionati, non il totale dell'intervallo.</p>
+  {% endif %}
+  {% if error_groups %}
+  <div class="error-table-wrap"><table class="table ranked-errors">
+    <thead><tr><th>Errore</th><th>Totale osservato</th><th>Ultimi 15 min</th><th>Ultimi 60 min</th><th>Picco/min</th><th>Frequenza</th></tr></thead>
+    <tbody>
+    {% for g in error_groups %}
+    <tr><td colspan="6" class="error-row-cell">
+      <details class="ranked-error"><summary>
+        <span class="err-title">{{ g.signature }}</span>
+        <span class="err-number">{{ g.count }}</span>
+        <span class="err-number">{{ g.count_15m }}</span>
+        <span class="err-number">{{ g.count_60m }}</span>
+        <span class="err-number">{{ g.peak_per_minute }}</span>
+        <span><span class="pill {{ g.frequency_class }}">{{ g.frequency }}</span></span>
+      </summary>
+      <div class="err-detail"><div class="sub">Log: {{ g.sources|join(', ') }} · Prima: {{ g.first_local }} · Ultima: {{ g.last_local }} (ora italiana)</div>
+        <h4>Righe originali campionate (massimo 3)</h4>
+        {% for ex in g.examples %}<div class="log-example"><span class="sub mono">{{ ex.at }}</span><pre class="mono break">{{ ex.message }}</pre></div>{% endfor %}
+        <p class="sub">Il picco/min è il massimo registrato in una sorgente, non la somma di picchi di minuti diversi.</p>
+      </div>
+      </details></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% else %}
+    <p class="sub">Nessun errore raggruppato in questo audit.</p>
+  {% endif %}
+  {% if legacy_logs %}
+  <p class="sub warning">Audit storico: per {{ legacy_logs|join(', ') }} non sono disponibili conteggi per tipologia. Le righe duplicate non vengono mostrate: aggiorna il collector e avvia un nuovo audit.</p>
+  {% endif %}
+  <p class="sub">Le finestre di 15 e 60 minuti sono calcolate rispetto all'istante di raccolta, non all'apertura di questa pagina. Un evento raro non ha automaticamente priorità alta.</p>
+</section>
+{% endif %}
+{% endblock %}

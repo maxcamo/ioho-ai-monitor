@@ -1,0 +1,27 @@
+# Credentials and runtime configs
+.env
+.env.*
+!.env.example
+config.json
+*secret*
+*token*
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+**/authorized_keys
+**/id_rsa
+**/id_ed25519
+# Runtime data and provisioned bundles
+*.tar.gz
+*.zip
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.log
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store

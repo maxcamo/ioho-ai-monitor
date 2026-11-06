@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Panoramica · IOHO AI Monitor{% endblock %}
+{% block content %}
+<div class="split"><div><div class="eyebrow">Infrastructure operations</div><h1>Panoramica server</h1><div class="sub">Monitoraggio dei log, incidenti Zabbix e analisi notturne · {{ now.strftime('%d/%m/%Y %H:%M') }} UTC</div></div><span class="pill unknown">{{ servers|length }} server registrati</span></div>
+<div class="stats">
+  <div class="stat"><div class="sub">Regolari</div><b class="ok">{{ counters.ok }}</b></div>
+  <div class="stat"><div class="sub">Warning</div><b class="warning">{{ counters.warning }}</b></div>
+  <div class="stat"><div class="sub">Critici</div><b class="critical">{{ counters.critical }}</b></div>
+  <div class="stat"><div class="sub">Non verificati</div><b class="unknown">{{ counters.unknown }}</b></div>
+</div>
+<section class="panel"><h2>Stato server</h2>
+<table class="table"><thead><tr><th>Cliente / server</th><th>Host Zabbix</th><th>Stato</th><th>Collector</th><th>Ultima analisi (UTC)</th></tr></thead><tbody>
+{% for s in servers %}<tr><td><a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a></td><td class="mono">{{ s.zabbix_host }}</td><td><span class="pill {{ s.status }}">{{ 'NON VERIFICATO' if s.status == 'unknown' else s.status.upper() }}</span></td><td>{% if s.stale %}<span class="error">Offline / senza heartbeat</span>{% else %}<span class="ok">Online</span>{% endif %}</td><td>{{ s.last_analysis_at.strftime('%d/%m %H:%M') if s.last_analysis_at else '—' }}</td></tr>{% else %}<tr><td colspan="5">Nessun server registrato. Eseguire manage.py add-server.</td></tr>{% endfor %}
+</tbody></table></section>
+<section class="panel"><h2>Attività recente</h2>
+<table class="table"><thead><tr><th>Data (UTC)</th><th>Server</th><th>Tipo</th><th>Stato job</th><th>Diagnosi</th></tr></thead><tbody>
+{% for j in jobs %}<tr><td>{{ j.created_at.strftime('%d/%m %H:%M') }}</td><td><a href="/server/{{ j.server_id }}">{{ j.server.name }}</a></td><td>{{ 'Allarme Zabbix' if j.kind == 'incident' else 'Audit log' }}</td><td>{{ j.state }}</td><td><a href="/incident/{{ j.id }}">{% if j.analysis %}<span class="pill {{ j.analysis.severity }}">{{ j.analysis.severity }}</span> {{ j.analysis.summary[:95] }}{% else %}Apri dettagli{% endif %}</a></td></tr>{% else %}<tr><td colspan="5">Nessuna analisi ricevuta.</td></tr>{% endfor %}
+</tbody></table></section>
+{% endblock %}

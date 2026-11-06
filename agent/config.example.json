@@ -1,0 +1,20 @@
+{
+  "console_url": "https://monitor.example.com",
+  "agent_token": "TOKEN_GENERATO_DAL_COMANDO_ADD_SERVER",
+  "server_timezone": "Europe/Rome",
+  "poll_seconds": 20,
+  "max_bytes_per_file": 12000000,
+  "max_total_bytes": 90000000,
+  "max_files": 40,
+  "access_logs": [
+    "/var/log/nginx/access.log*",
+    "/var/www/www.example.com/logs/access.log*"
+  ],
+  "nginx_error_logs": [
+    "/var/log/nginx/error.log*",
+    "/var/www/www.example.com/logs/error.log*"
+  ],
+  "app_logs": [
+    "/var/www/www.example.com/htdocs/var/log/*.log*"
+  ]
+}
