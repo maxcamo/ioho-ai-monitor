@@ -14,6 +14,10 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 from zoneinfo import ZoneInfo
+try:
+    from .traffic_analysis import TrafficSummary
+except ImportError:
+    from traffic_analysis import TrafficSummary
 
 # Formati supportati:
 # - combined standard: remote_ip - user [date] "GET /path HTTP/1.1" status bytes "referer" "ua"
@@ -179,6 +183,9 @@ def collect(config, minutes):
     since = reference - dt.timedelta(minutes=minutes)
     per_file_bytes = min(int(config.get("max_bytes_per_file", 12_000_000)), 60_000_000)
     budget = min(int(config.get("max_total_bytes", 90_000_000)), 250_000_000)
+    traffic = TrafficSummary(reference) if minutes <= 20 else None
+    if traffic is not None:
+        budget = max(budget, min(int(config.get("incident_total_bytes", 40_000_000)), 60_000_000))
     max_files = min(int(config.get("max_files", 40)), 80)
     counts = collections.Counter()
     paths = collections.Counter()
@@ -196,6 +203,8 @@ def collect(config, minutes):
     used = set()
     spent = 0
     access_found = False
+    coverage["access_truncated"] = False
+    coverage["access_bytes_read"] = 0
     for group, patterns in types:
         matched = []
         for pattern in patterns:
@@ -218,12 +227,18 @@ def collect(config, minutes):
                 # File con modifiche precedenti alla finestra: saltare (assume data/mtime attendibili).
                 if dt.datetime.fromtimestamp(stat.st_mtime, dt.timezone.utc) < since:
                     continue
-                limit = min(per_file_bytes, budget - spent)
+                file_budget = per_file_bytes
+                if group == "access" and traffic is not None:
+                    file_budget = max(file_budget, min(int(config.get("incident_access_bytes", 16_000_000)), 24_000_000))
+                limit = min(file_budget, budget - spent)
                 if limit < 1024:
                     coverage["truncated"] = True
                     break
                 stream, truncated = file_lines(path, limit, coverage)
                 coverage["truncated"] |= truncated
+                if group == "access":
+                    coverage["access_truncated"] |= truncated
+                    coverage["access_bytes_read"] += min(limit, stat.st_size)
                 coverage["matched"] += 1
                 spent += limit if path.endswith(".gz") else min(limit, stat.st_size)  # budget conservativo gzip
                 key = "nginx_error" if group == "nginx_error" else Path(path).name.split(".log")[0].split(".1")[0]
@@ -248,6 +263,9 @@ def collect(config, minutes):
                             continue
                         if stamp < since:
                             continue
+                        if traffic is not None:
+                            traffic.add(stamp, ip, normalize_uri(uri), status,
+                                        bool(BOT.search(ua)), bool(FILTER.search(uri)))
                         total += 1
                         counts[status] += 1
                         paths[normalize_uri(uri)] += 1
@@ -305,6 +323,7 @@ def collect(config, minutes):
                    "known_bot_user_agent_hits": bot_hits, "top_paths": paths.most_common(15),
                    "top_clients": ips.most_common(12), "top_user_agents": agents.most_common(10),
                    "per_minute": per_minute.most_common(15)},
+        "traffic": traffic.snapshot(coverage["access_truncated"]) if traffic else None,
         "logs": logs, "processes": processes, "system": system, "coverage": coverage
     }
 
