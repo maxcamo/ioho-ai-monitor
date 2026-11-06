@@ -439,3 +439,55 @@ Se il valore rimane assente, aprire il report Accessi dell'host:
 se la sezione CPU segnala `item_missing` o `host_missing` va corretta
 la configurazione Zabbix di quell'host. Se il report è antecedente alla
 v0.9, avviare una nuova analisi accessi.
+
+
+## v0.13 — Tabella CPU Zabbix con barre, load e processi (auto-refresh)
+
+La panoramica (home) ora legge gli **ultimi valori disponibili su Zabbix**
+per i cinque host tecnici già registrati. Usa API HTTPS in sola lettura,
+con chiamate batch (una `host.get`, due `item.get`) e cache locale
+di **25 secondi**: il browser effettua un refresh completo della sola
+panoramica **ogni 30 secondi**. Le altre pagine rimangono a 45 secondi.
+
+Nuove colonne compatte: **CPU %** con barra di 20 segmenti verdi,
+gialli e rossi, **Load 1m/5m/15m** (load average fornito dagli item
+Zabbix, non percentuale CPU) e **Processi**. La CPU arriva dall'item
+`system.cpu.util` chiamato «CPU utilization» oppure dalla conversione
+di `system.cpu.util[,idle]`; i load usano gli item
+`system.cpu.load[all,avg1/avg5/avg15]` e il numero processi
+`proc.num` o `proc.num[]`, secondo il template Zabbix. Tutte le
+rilevazioni riportano l'ultimo orario Zabbix disponibile; un item
+senza dati negli ultimi 5 minuti non viene visualizzato come se fosse
+aggiornato (mostra —).
+
+La **riga** del server si evidenzia debolmente in giallo con CPU
+**≥60%** e in rosso con CPU **≥85%**; la cella CPU ha evidenza maggiore.
+Nessuna evidenza su dati assenti. Queste soglie sono UI indicative
+(`CPU_YELLOW_AT`/`CPU_RED_AT` in `app/zabbix_live.py`) e **non**
+alterano severità/trigger di Zabbix o l'ordinamento per stato dei
+controlli applicativi/accessi. Le righe sono più basse e le icone dei
+controlli manuali rimangono a fianco dei badge.
+
+A differenza della v0.12, la tabella **non** usa il valore CPU salvato
+nel precedente report orario: mostra l'ultimo campione Zabbix. Il
+confronto storico CPU e access.log rimane nel rapporto d'incidente.
+La CPU visibile è l'ultimo valore raccolto da Zabbix, **non una
+misurazione istantanea creata dal browser**. L'API live non blocca il
+worker e non viene richiamata per singola riga. Se Zabbix non è
+raggiungibile, il pannello dei report continua normalmente senza
+inventare valori CPU, carico o processi.
+
+**Deploy centrale (solo API; conservare configurazione e token esistenti):**
+
+```bash
+clear
+cd /tmp/ioho-ai-monitor || exit 1
+git pull --ff-only origin main
+test "$(cat VERSION)" = "0.13"
+bash deploy/update-central-v013.sh
+```
+
+Lo script aggiorna `app/zabbix_live.py`, `app/main.py`, i template e
+`VERSION`; esegue il backup, ricostruisce solo `api`, testa
+`/health` e stampa un controllo dei cinque host con soli valori
+numerici (non mostra token). Non modifica agenti, Zabbix o DB.
