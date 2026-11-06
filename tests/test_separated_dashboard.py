@@ -48,7 +48,10 @@ def test_domain_separation_and_time_freshness():
     r = TestClient(app).get('/', auth=auth)
     assert r.status_code == 200, r.text
     assert 'Problemi applicativi' in r.text and 'Traffico e crawler' in r.text
-    assert 'Magento exception' in r.text and 'HTTP 5xx' in r.text
+    main_table = r.text.split("Stato per tipologia", 1)[1].split("Attività recente", 1)[0]
+    assert "Magento exception" not in main_table
+    assert "HTTP 5xx" not in main_table
+    assert 'class="domain-updated"' in main_table
     with Session.begin() as db:
         job = db.get(Job, access_job.id)
         job.updated_at = utcnow() - timedelta(minutes=22)
