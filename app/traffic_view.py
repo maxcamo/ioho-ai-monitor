@@ -45,7 +45,20 @@ def make_traffic_report(payload):
     traffic = payload.get("traffic") or {}
     raw_windows = traffic.get("windows") or {}
     coverage = payload.get("coverage") or {}
-    result = {"captured_at": traffic.get("captured_at"), "windows": {},
+    cpu = payload.get("zabbix_cpu")
+    if not isinstance(cpu, dict):
+        cpu = {"status": "not_collected"}
+    cpu_minutes = {}
+    if cpu.get("status") == "ok":
+        for record in (cpu.get("minutes") or [])[:60]:
+            if isinstance(record, dict) and isinstance(record.get("minute"), str):
+                try:
+                    value = float(record.get("cpu_pct"))
+                    if 0 <= value <= 100:
+                        cpu_minutes[record["minute"]] = round(value, 1)
+                except (TypeError, ValueError):
+                    pass
+    result = {"captured_at": traffic.get("captured_at"), "windows": {}, "cpu": cpu,
               "limited": bool(coverage.get("access_truncated")),
               "access_missing": bool(coverage.get("no_access_log")),
               "unparsed": _number(coverage.get("access_unparsed_lines")),
@@ -139,6 +152,7 @@ def make_traffic_report(payload):
         peak=max([r["count"] for r in per_minute] or [1])
         for row in per_minute:
             row["width"] = max(2, round(100 * row["count"] / peak)) if row["count"] else 0
+            row["cpu_pct"] = cpu_minutes.get(row["minute"])
         top_client_count=clients[0]["count"] if clients else 0
         findings=[]
         if network_rows and network_rows[0]["count"] >= 50 and network_rows[0]["share"] >= 25:
