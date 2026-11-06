@@ -44,7 +44,7 @@
     </tbody></table></div>
   </div>
   <div id="http-subnets" class="http-block">
-    <h3>2. Reti IP più attive <span class="sub">· IPv4 /24 e IPv6 /64</span></h3>
+    <h3>Reti IP più attive <span class="sub">· IPv4 /24 e IPv6 /64</span></h3>
     <p class="sub">Aggregazione per intervallo IP: mette in evidenza crawler distribuiti su più indirizzi della stessa rete. Una rete condivisa <strong>non dimostra</strong> che le richieste provengano da un unico soggetto.</p>
     {% if t.networks_limited %}
     <p class="sub warning"><strong>Conteggi per rete parziali:</strong> {% if not t.networks_from_collector %}questo audit precedente memorizzava solo i primi 15 IP. I totali qui sotto sono almeno quelli visibili, non il totale effettivo della rete.{% else %}è stato raggiunto il limite delle aggregazioni in memoria.{% endif %} Esegui una nuova analisi con il collector aggiornato per ottenere i conteggi su tutte le richieste lette.</p>
