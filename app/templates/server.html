@@ -5,12 +5,12 @@
 <div class="split"><div><div class="eyebrow">Server Magento</div><h1>{{ server.name }}</h1><div class="sub">Host tecnico Zabbix: <span class="mono">{{ server.zabbix_host }}</span></div></div><span class="pill unknown">DUE DIAGNOSI INDIPENDENTI</span></div>
 <section class="panel"><h2>Analisi su richiesta</h2><p class="sub">Raccolta separata: accessi per rilevare traffico anomalo, applicativi per evidenziare eccezioni Magento. Non generiamo carico artificiale sul sito.</p>
 <div class="grid">
-  {% for label,scope,check,description,button in [('Problemi applicativi · 24 ore','app',status_app,'Errori Magento raggruppati, frequenza e picchi; la copertura dipende dai limiti di lettura.','Analizza applicativi 24h'), ('Traffico / crawler · 10 minuti','access',status_access,'URL, filtri, IP più attivi, HTTP 5xx e richieste al minuto.','Analizza accessi 10m')] %}
+  {% for label,scope,check,description,button in [('Problemi applicativi · 24 ore','app',status_app,'Errori Magento raggruppati, frequenza e picchi; la copertura dipende dai limiti di lettura.','Analizza applicativi 24h'), ('Traffico / crawler · 10 minuti (auto ogni ora)','access',status_access,'URL, filtri, IP più attivi, HTTP 5xx e richieste al minuto.','Analizza accessi 10m')] %}
   <div class="inner">
     <h3>{{ label }}</h3>
-    <div class="domain-result"><span class="pill {{ check.status }}">{{ 'DA AGGIORNARE' if check.outdated else 'NON VERIFICATO' if check.status == 'unknown' else check.status.upper() }}</span></div>
+    <div class="domain-result">{% if check.report_id %}<a class="pill {{ check.status }} status-report-link" href="/incident/{{ check.report_id }}" title="Apri report">{{ 'DA AGGIORNARE' if check.outdated else 'NON VERIFICATO' if check.status == 'unknown' else check.status.upper() }}</a>{% else %}<span class="pill {{ check.status }}">NON VERIFICATO</span>{% endif %}</div>
     <p class="sub">{{ description }}</p>
-    {% if check.report_id %}<p><a href="/incident/{{ check.report_id }}">{{ check.summary }}</a></p><p class="sub">Ultimo controllo: {{ check.timestamp.strftime('%d/%m/%Y %H:%M UTC') if check.timestamp else '—' }}{% if check.outdated %} · esito storico: {{ check.last_severity }}{% endif %}</p>{% else %}<p class="sub">Nessuna analisi dedicata completata.</p>{% endif %}
+    {% if check.report_id %}<p>{{ check.summary }}</p><p class="sub">Ultimo controllo: {{ check.timestamp.strftime('%d/%m/%Y %H:%M UTC') if check.timestamp else '—' }}{% if check.outdated %} · esito storico: {{ check.last_severity }}{% endif %}</p>{% else %}<p class="sub">Nessuna analisi dedicata completata.</p>{% endif %}
     {% if check.pending_id %}<p class="sub"><a href="/incident/{{ check.pending_id }}">Analisi in corso #{{ check.pending_id }}</a></p>{% endif %}
     <form action="/server/{{ server.id }}/analyze/{{ scope }}" method="post"><button class="analysis-btn" type="submit">{{ button }}</button></form>
   </div>
