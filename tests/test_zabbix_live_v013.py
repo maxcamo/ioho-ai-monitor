@@ -65,7 +65,7 @@ def test_batch_metrics_last_values_and_colored_levels(monkeypatch):
         raise AssertionError(method)
     result = get_live_metrics(data.keys(), rpc=fake_rpc)
     assert calls == ["host.get", "item.get", "item.get"]
-    assert result["server-yellow"]["cpu_pct"] == 64.0
+    assert result["server-yellow"]["cpu_pct"] == 63.97
     assert result["server-yellow"]["level"] == "warning"
     assert result["server-yellow"]["load1"] == 3.26
     assert result["server-yellow"]["load5"] == 2.95
@@ -124,7 +124,7 @@ def test_home_refresh_and_warning_row_highlight(monkeypatch):
     assert '<meta http-equiv="refresh" content="30"/>' in html
     assert "Pagina aggiornata ogni 30 s" in overview
     assert "cpu-row-warning" in overview
-    assert "63,9%" in overview or "64,0%" in overview
+    assert "63,97%" in overview
     assert "3.26" in overview and "2.95" in overview
     assert "Processi" in overview
     assert "131" in overview
