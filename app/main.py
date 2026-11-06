@@ -116,6 +116,38 @@ DOMAIN_FRESHNESS = {"access": timedelta(minutes=75), "app": timedelta(minutes=90
 ACTIVE_STATES = ("queued", "leased", "collected", "processing")
 
 
+def cpu_from_access_audit(job, now: datetime):
+    """Mostra solo dati CPU Zabbix realmente salvati nell'ultimo audit HTTP.
+
+    Nessuna richiesta di rete nella dashboard: l'aggiornamento avviene con i
+    controlli accessi orari. Un audit senza CPU valida non diventa uno 0%.
+    """
+    if not job or not isinstance(job.payload, dict):
+        return None
+    raw = job.payload.get("zabbix_cpu")
+    if not isinstance(raw, dict) or raw.get("status") != "ok":
+        return None
+    try:
+        import math
+        last = float(raw["last_pct"])
+        peak = float(raw["peak_pct"])
+        if not all(math.isfinite(x) and 0 <= x <= 100 for x in (last, peak)):
+            return None
+    except (ValueError, TypeError, KeyError):
+        return None
+    when = job.updated_at
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return {
+        "last_pct": round(last, 1),
+        "peak_pct": round(peak, 1),
+        "timestamp": when,
+        "stale": now - when > DOMAIN_FRESHNESS["access"],
+    }
+
+
 def domain_result(db, server_id: int, scope: str, now: datetime) -> dict:
     kind = DOMAIN_KINDS[scope]
     # I vecchi app_check di 60 minuti non vanno presentati come
@@ -149,6 +181,7 @@ def domain_result(db, server_id: int, scope: str, now: datetime) -> dict:
         "outdated": outdated,
         "pending_id": active.id if active else None,
         "failed_id": failed.id if failed and (not last or failed.id > last.id) else None,
+        "cpu": cpu_from_access_audit(last, now) if scope == "access" else None,
     }
 
 
