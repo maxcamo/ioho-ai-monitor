@@ -75,7 +75,7 @@ def _choose_cpu(items, now):
             value, stamp = raw
             pct = 100 - value if idle else value
             if 0 <= pct <= 100:
-                return round(pct, 1), stamp
+                return round(pct, 2), stamp
         candidates = [candidate for candidate in candidates if candidate is not item]
     return None, None
 
