@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from hmac import compare_digest
 from pathlib import Path
+from urllib.parse import urlsplit
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -78,7 +79,7 @@ def agent_next(server: Server = Depends(agent_auth)):
             job.attempts += 1
             job.updated_at = utcnow()
             job.leased_until = utcnow() + timedelta(minutes=7)
-            return {"job": {"id": job.id, "kind": job.kind, "minutes": 20 if job.kind in ("incident", "traffic_check") else 1440}}
+            return {"job": {"id": job.id, "kind": job.kind, "minutes": int((job.context or {}).get("minutes", 20 if job.kind in ("incident", "traffic_check") else 1440)), "sections": (["access"] if job.kind == "access_check" else ["app"] if job.kind == "app_check" else None)}}
         return {"job": None}
 
 
@@ -131,7 +132,43 @@ def dashboard(request: Request, _: str = Depends(dashboard_auth)):
             if job.analysis:
                 job.analysis.severity
         counters = {x: sum(1 for s in servers if s["status"] == x) for x in ("ok", "warning", "critical", "unknown")}
-        return views.TemplateResponse(request=request, name="index.html", context={"servers": servers, "jobs": jobs, "counters": counters, "now": utcnow()})
+        return views.TemplateResponse(request=request, name="index.html", context={"servers": servers, "jobs": jobs, "counters": counters, "now": utcnow(), "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
+
+
+@app.post("/server/{server_id}/analyze/{scope}")
+def request_manual_analysis(server_id: int, scope: str, request: Request, _: str = Depends(dashboard_auth)):
+    """Un click autenticato accoda una sola analisi per tipologia e server."""
+    if scope not in ("access", "app"):
+        raise HTTPException(status_code=404)
+    # Non accettare form POST cross-origin con credenziali Basic del browser.
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    host = request.headers.get("host", "").lower()
+    if not origin or urlsplit(origin).netloc.lower() != host:
+        raise HTTPException(status_code=403, detail="Origine richiesta non valida")
+    kind = "access_check" if scope == "access" else "app_check"
+    minutes = 10 if scope == "access" else 60
+    with Session.begin() as db:
+        server = db.get(Server, server_id)
+        if not server or not server.enabled:
+            raise HTTPException(status_code=404, detail="Server non disponibile")
+        # Un job ancora attivo o appena eseguito non va duplicato a ogni click.
+        prior = db.scalar(select(Job).where(
+            Job.server_id == server_id,
+            Job.kind == kind,
+            Job.created_at >= utcnow() - timedelta(minutes=2),
+            Job.state.in_(["queued", "leased", "collected", "processing", "done"])
+        ).order_by(Job.id.desc()))
+        if prior:
+            job_id = prior.id
+        else:
+            job = Job(server_id=server_id, kind=kind, state="queued",
+                      incident_name=("Analisi access.log - ultimi 10 minuti" if scope == "access"
+                                     else "Analisi log applicativi - ultimi 60 minuti"),
+                      context={"manual": True, "minutes": minutes, "scope": scope})
+            db.add(job)
+            db.flush()
+            job_id = job.id
+    return RedirectResponse(url=f"/incident/{job_id}", status_code=303)
 
 
 @app.get("/server/{server_id}", response_class=HTMLResponse)
@@ -144,7 +181,7 @@ def server_page(server_id: int, request: Request, _: str = Depends(dashboard_aut
         for job in jobs:
             if job.analysis:
                 job.analysis.summary
-        return views.TemplateResponse(request=request, name="server.html", context={"server": server, "jobs": jobs})
+        return views.TemplateResponse(request=request, name="server.html", context={"server": server, "jobs": jobs, "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
 
 
 @app.get("/incident/{job_id}", response_class=HTMLResponse)
