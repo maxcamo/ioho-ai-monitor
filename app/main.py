@@ -78,7 +78,7 @@ def agent_next(server: Server = Depends(agent_auth)):
             job.attempts += 1
             job.updated_at = utcnow()
             job.leased_until = utcnow() + timedelta(minutes=7)
-            return {"job": {"id": job.id, "kind": job.kind, "minutes": 20 if job.kind == "incident" else 1440}}
+            return {"job": {"id": job.id, "kind": job.kind, "minutes": 20 if job.kind in ("incident", "traffic_check") else 1440}}
         return {"job": None}
 
 
