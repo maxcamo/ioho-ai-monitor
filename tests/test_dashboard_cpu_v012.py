@@ -69,8 +69,9 @@ def test_cpu_stale_and_unavailable_never_fake_zero():
         assert by_id[sid_missing]["access"]["cpu"] is None
         assert by_id[sid_bad]["access"]["cpu"] is None
     page = TestClient(app).get("/", auth=("admin", "test-dashboard-pass")).text
-    assert " · storico" in page
-    assert "— nessun dato nell'ultimo report accessi" in page
+    # I dati vecchi restano nel job; la home v0.13 mostra solo il live Zabbix.
+    assert "Load 1m" in page
+    assert "Processi" in page
 
 
 def test_cpu_missing_payload_returns_none():
