@@ -42,43 +42,62 @@ def enqueue_nightly():
     print(f"[scheduler] audit notturno {day} accodato", flush=True)
 
 
-def enqueue_hourly_access():
-    """Una fotografia 10m ogni ora per server; marker DB evita duplicati al riavvio."""
-    if os.getenv("HOURLY_ACCESS_ENABLED", "true").lower() not in ("1", "true", "yes"):
-        return
+def _enqueue_hourly_scope(scope, kind, minutes, setting, marker_prefix, title):
+    """Un audit per server/tipologia/ora, senza duplicare job in corso o recenti."""
+    if os.getenv(setting, "true").strip().lower() not in ("1", "true", "yes"):
+        return 0
     now = local_now()
-    # Distribuire il prelievo dopo l'inizio dell'ora, non alle 00:00.
-    if not (2 <= now.minute <= 10):
-        return
+    # La finestra 02-10 concede al worker alcuni tentativi senza
+    # accodare recuperi retroattivi dopo interruzioni prolungate.
+    if not 2 <= now.minute <= 10:
+        return 0
     day = now.strftime("%Y-%m-%d")
-    marker = f"traffic_h{now.hour:02d}"
+    marker = f"{marker_prefix}_h{now.hour:02d}"
+    created = 0
     with Session.begin() as db:
         if marker_exists(db, marker, day):
-            return
+            return 0
         db.add(DailyMarker(kind=marker, day=day))
-        created = 0
-        for server in db.scalars(select(Server).where(Server.enabled.is_(True))):
-            # Non duplicare richieste recenti o gia' attive sullo stesso server.
-            busy = db.scalar(select(Job).where(
+        # Prima i controlli accessi (scheduler invocato per primo),
+        # poi quelli applicativi. Un job attivo blocca solo la sua tipologia.
+        for server in db.scalars(select(Server).where(Server.enabled.is_(True))).all():
+            active = db.scalar(select(Job.id).where(
                 Job.server_id == server.id,
-                Job.kind == "access_check",
-                Job.state.in_(["queued", "leased", "collected", "processing"])
-            ).order_by(Job.id.desc()))
-            recent = db.scalar(select(Job).where(
+                Job.kind == kind,
+                Job.state.in_(("queued", "leased", "collected", "processing"))
+            ).limit(1))
+            recent = db.scalar(select(Job.id).where(
                 Job.server_id == server.id,
-                Job.kind == "access_check",
-                Job.state == "done",
-                Job.created_at >= utcnow() - timedelta(minutes=10)
-            ).order_by(Job.id.desc()))
-            if busy or recent:
+                Job.kind == kind,
+                Job.created_at >= utcnow() - timedelta(minutes=10),
+                Job.state == "done"
+            ).limit(1))
+            if active is not None or recent is not None:
                 continue
-            db.add(Job(server_id=server.id, kind="access_check",
-                       incident_name="Controllo crawler automatico - ultimi 10 minuti",
-                       context={"minutes": 10, "scope": "access", "automatic": True,
+            db.add(Job(server_id=server.id, kind=kind,
+                       incident_name=title,
+                       context={"minutes": minutes, "scope": scope,
+                                "automatic": True,
                                 "hour": now.strftime("%Y-%m-%d %H:00 %z")},
                        state="queued"))
             created += 1
-    print(f"[scheduler] traffico orario {day} {now.hour:02d}: {created} controlli accodati", flush=True)
+    print(f"[scheduler] {scope} {day} {now.hour:02d}: {created} controlli accodati",
+          flush=True)
+    return created
+
+
+def enqueue_hourly_access():
+    """Fotografia del traffico degli ultimi 10m, ogni ora."""
+    return _enqueue_hourly_scope(
+        "access", "access_check", 10, "HOURLY_ACCESS_ENABLED", "traffic",
+        "Controllo crawler automatico - ultimi 10 minuti")
+
+
+def enqueue_hourly_app():
+    """Controllo log applicativi delle ultime 24h, ogni ora, con lettura limitata."""
+    return _enqueue_hourly_scope(
+        "app", "app_check", 1440, "HOURLY_APP_ENABLED", "app",
+        "Controllo applicativo automatico - ultime 24 ore")
 
 
 def send_mail(day, records):
@@ -207,6 +226,7 @@ if __name__ == "__main__":
         try:
             enqueue_nightly()
             enqueue_hourly_access()
+            enqueue_hourly_app()
             maybe_mail()
             recover_stuck_processing()
             completed = run_one()
