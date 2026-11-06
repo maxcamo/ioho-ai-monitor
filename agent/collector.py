@@ -15,7 +15,15 @@ import urllib.request
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-NGINX = re.compile(r'^(\S+) \S+ \S+ \[([^]]+)\] "\S+ ([^ ]+) [^"]+" (\d{3}) \S+ "[^"]*" "([^"]*)"')
+# Formati supportati:
+# - combined standard: remote_ip - user [date] "GET /path HTTP/1.1" status bytes "referer" "ua"
+# - IOHO/proxy: x_forwarded_for (anche piu IP) - user [date] host="domain" "request" status bytes "referer" "ua"
+NGINX = re.compile(
+    r'^(?P<client>.+?)\s+-\s+\S+\s+\[(?P<date>[^]]+)\]\s+'
+    r'(?:host="[^"]*"\s+)?'
+    r'"(?P<request>[^"]*)"\s+(?P<status>\d{3})\s+\S+\s+'
+    r'"[^"]*"\s+"(?P<ua>[^"]*)"'
+)
 NGINX_DATE = "%d/%b/%Y:%H:%M:%S %z"
 ISO_TIME = re.compile(r'(20\d{2}[-/]\d\d[-/]\d\d)[T ](\d\d:\d\d:\d\d)(\.\d+)?(Z|[+-]\d{2}:?\d{2})?')
 SENSITIVE = re.compile(r'(?i)(authorization\s*[:=]\s*(?:bearer\s+)?|\b(?:password|passwd|secret|token|api[_-]?key|session[_-]?id|access[_-]?key)\s*[=:]\s*)[^\s&"\']+')
@@ -227,7 +235,13 @@ def collect(config, minutes):
                         if not m:
                             access_unparsed += 1
                             continue
-                        ip, date, uri, status, ua = m.groups()
+                        forwarded = m.group("client")
+                        ip = forwarded.split(",", 1)[0].strip() or "-"
+                        date = m.group("date")
+                        status = m.group("status")
+                        ua = m.group("ua")
+                        request_parts = m.group("request").split(None, 2)
+                        uri = request_parts[1] if len(request_parts) >= 2 else "/[request-unavailable]"
                         try:
                             stamp = dt.datetime.strptime(date, NGINX_DATE).astimezone(dt.timezone.utc)
                         except ValueError:
