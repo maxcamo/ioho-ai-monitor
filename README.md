@@ -1,3 +1,18 @@
+## Dashboard: analisi su richiesta (v0.5)
+
+Nella **Panoramica** e nella pagina di ogni server sono presenti due azioni:
+
+- **Accessi 10m** (`access_check`): raccoglie SOLO access.log, aggrega ultimi 5/10 minuti per IP, URL, filtri, status e ritmo/minuto, quindi avvia diagnosi AI (se OPENAI_API_KEY configurata).
+- **Applicativi 60m** (`app_check`): raccoglie SOLO log applicativi Magento negli ultimi 60 minuti e raggruppa firme di errore, frequenza e picchi, quindi avvia diagnosi AI.
+
+I pulsanti sono protetti da HTTP Basic e verifica same-origin, usano POST, accodano un job per server e categoria con limite anti-duplicazione di 2 minuti. Sono operazioni di **sola lettura**; non provocano stress artificiale e non modificano Nginx/Magento. Ogni report e' distinto dall'audit generale e non sovrascrive il suo stato di salute. I log vengono campionati entro i budget configurati; la diagnosi segnala le limitazioni. L'AI legge solo aggregati depurati, non IP sorgente o righe grezze.
+
+Aggiornamento su ai-control: `bash deploy/update-central-v05.sh` dal clone GitHub. Aggiornamento sui collector gia installati: `bash deploy/update-agent-v05.sh`; aggiornare prima la console e poi gli agenti.
+
+**Per abilitare l'AI:** configurare `OPENAI_API_KEY` nell'`.env` della console centrale e ricreare solo il worker con Docker Compose. Senza chiave i pulsanti generano report con diagnosi per regole e la dashboard lo dichiara esplicitamente. Non mettere la chiave su GitHub o sui server Magento.
+
+---
+
 > **Nota GitHub:** questo repository contiene solo codice e template, mai token di collector, `.env`, certificati o log dei clienti. Dopo il clone conservare la configurazione runtime sul server e aggiornarla separatamente. Per Polti usare `deploy/polti/README.txt`, che genera localmente un bundle contenente un token privato: non caricare il bundle su GitHub.
 
 # IOHO AI Monitor — sorgenti consolidati v0.3 (pilota controllato)
