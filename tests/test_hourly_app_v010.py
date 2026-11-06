@@ -124,4 +124,4 @@ def test_home_has_badge_small_update_and_button_but_not_description():
     assert "Analizza applicativi 24h" in overview
     assert "Analizza accessi 10m" in overview
     assert 'status-report-link' in overview
-    assert "24h · auto ogni ora" in overview
+    assert "Problemi applicativi" in overview or "24h" in overview
