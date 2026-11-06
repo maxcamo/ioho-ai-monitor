@@ -30,18 +30,35 @@
     <p class="sub">Sono indicatori automatici, non la prova di un attacco: IP e User-Agent possono essere influenzati dal proxy o falsificati. Controllare Zabbix prima di attribuire il carico ai crawler.</p>
   </div>
   <nav class="http-jump" aria-label="Sezioni del rapporto">
-    <a href="#http-ip">IP più attivi</a><a href="#http-filter">Pagine con filtri</a><a href="#http-plain">Pagine senza filtri</a><a href="#http-pairs">IP × URL</a><a href="#http-timeline">Picchi e HTTP</a>
+    <a href="#http-ip">IP più attivi</a><a href="#http-subnets">Reti IP /24 · /64</a><a href="#http-filter">Pagine con filtri</a><a href="#http-plain">Pagine senza filtri</a><a href="#http-pairs">IP × URL</a><a href="#http-timeline">Picchi e HTTP</a>
   </nav>
   <div id="http-ip" class="http-block">
     <h3>1. IP più attivi <span class="sub">· primi 15 per richieste</span></h3>
     <p class="sub">Ogni IP mostra numero e percentuale delle richieste del campione, frequenza massima, filtri, risposte restrittive e URL principali.</p>
     <div class="http-scroll"><table class="table http-table"><thead><tr><th>#</th><th>IP sorgente</th><th>Richieste</th><th>% traffico</th><th>Picco/min</th><th>Filtri</th><th>403/410/429/444</th><th>URL più visitate</th></tr></thead><tbody>
       {% for ip in t.clients %}<tr>
-        <td>{{ loop.index }}</td><td class="mono"><strong>{{ ip.ip }}</strong>{% if ip.indicators %}<div class="sub warning">{{ ip.indicators|join(' · ') }}</div>{% endif %}</td>
+        <td>{{ loop.index }}</td><td class="mono"><strong>{{ ip.ip }}</strong>{% if ip.lookup_url %} <a class="http-iplookup" href="{{ ip.lookup_url }}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" title="Apri la scheda IPinfo in una nuova scheda">IPinfo ↗</a>{% endif %}{% if ip.indicators %}<div class="sub warning">{{ ip.indicators|join(' · ') }}</div>{% endif %}</td>
         <td><strong>{{ ip.count }}</strong></td><td>{{ ip.share }}%<div class="http-track"><span style="width:{{ ip.share }}%"></span></div></td><td>{{ ip.peak_per_minute }}</td><td>{{ ip.filtered }}</td><td>{{ ip.blocked }}</td>
         <td>{% for hit in ip.top_urls[:3] %}<div class="mono http-path">{{ hit[0] }} <strong>({{ hit[1] }})</strong></div>{% else %}—{% endfor %}</td>
       </tr>{% else %}<tr><td colspan="8">Nessun IP osservato.</td></tr>{% endfor %}
     </tbody></table></div>
+  </div>
+  <div id="http-subnets" class="http-block">
+    <h3>2. Reti IP più attive <span class="sub">· IPv4 /24 e IPv6 /64</span></h3>
+    <p class="sub">Aggregazione per intervallo IP: mette in evidenza crawler distribuiti su più indirizzi della stessa rete. Una rete condivisa <strong>non dimostra</strong> che le richieste provengano da un unico soggetto.</p>
+    {% if t.networks_limited %}
+    <p class="sub warning"><strong>Conteggi per rete parziali:</strong> {% if not t.networks_from_collector %}questo audit precedente memorizzava solo i primi 15 IP. I totali qui sotto sono almeno quelli visibili, non il totale effettivo della rete.{% else %}è stato raggiunto il limite delle aggregazioni in memoria.{% endif %} Esegui una nuova analisi con il collector aggiornato per ottenere i conteggi su tutte le richieste lette.</p>
+    {% endif %}
+    <div class="http-scroll"><table class="table http-table"><thead>
+      <tr><th>#</th><th>Rete / prefisso</th><th>Richieste</th><th>% campione</th><th>IP distinti</th><th>Con filtri</th><th>403/410/429/444</th><th>Dettagli rete</th></tr>
+    </thead><tbody>
+    {% for net in t.networks %}<tr>
+      <td>{{ loop.index }}</td><td class="mono"><strong>{{ net.network }}</strong></td>
+      <td><strong>{{ net.count }}</strong></td><td>{{ net.share }}%</td><td>{{ net.unique_ips }}</td><td>{{ net.filtered }}</td><td>{{ net.blocked }}</td>
+      <td>{% if net.lookup_url %}<a class="http-iplookup" href="{{ net.lookup_url }}" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">IPinfo ↗</a>{% else %}<span class="sub">IP privato / non pubblico</span>{% endif %}</td>
+    </tr>{% else %}<tr><td colspan="8">Nessuna rete IP valida disponibile nel campione.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p class="sub">I link aprono IPinfo solo quando li selezioni: la ricerca esterna riceverà l'IP pubblico o la rete scelta. La geolocalizzazione è indicativa e non prova la posizione reale o l'identità di un crawler.</p>
   </div>
   <div class="http-two">
     <div id="http-filter" class="http-block"><h3>2. Pagine con filtri Magento</h3><p class="sub">Solo richieste riconosciute come filtrate. I valori delle query sono rimossi per sicurezza, restano i nomi dei parametri.</p>
