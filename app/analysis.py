@@ -78,6 +78,7 @@ def rule_based(data: dict, kind: str) -> dict:
 def safe_ai_payload(data: dict) -> dict:
     """Non trasferisce indirizzi IP, PID o esempi di log completi al provider AI."""
     safe = deepcopy(data)
+    safe.pop("traffic", None)  # Le associazioni IP-URL restano nella sola console.
     access = safe.get("access", {})
     access.pop("top_clients", None)
     access.pop("top_user_agents", None)
