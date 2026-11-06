@@ -246,3 +246,12 @@ che erano state archiviate, ed è segnalata come **parziale**. Non equivale
 alla lettura integrale dell'access.log.
 Per aggiornare la console: `bash deploy/update-central-v07.sh`.
 Nessun upgrade agente è richiesto per questa modifica di visualizzazione.
+
+
+## v0.8 — Classifica delle reti IP e geolocalizzazione su richiesta
+
+Nel report di access.log sono visualizzate anche le reti IPv4 **/24** e IPv6 **/64**: richieste totali osservate, numero di IP distinti, richieste filtrate, risposte 403/410/429/444 e percentuale del campione. Con il collector aggiornato i conteggi per rete sono calcolati su tutte le richieste lette nel campione, non soltanto sui primi 15 IP. Per i job storici della v0.7 il raggruppamento e' invece derivato esclusivamente dai primi IP memorizzati: la UI segnala esplicitamente che i conteggi sono **parziali**, come accade anche se e' raggiunto il limite di aggregazione. Il campionamento del file puo' comunque essere incompleto.
+
+Accanto a ogni IP pubblico e alle reti pubbliche appare un link IPinfo; il monitor non consulta automaticamente servizi di geolocalizzazione. La visita al sito terzo e' deliberata, con `target=_blank`, `rel=noopener noreferrer` e `referrerpolicy=no-referrer`. Indirizzi privati e non validi non sono linkati. L'attribuzione di una rete/ASN o la posizione geoIP non prova che il client sia un crawler legittimo; verificare reverse+forward DNS per bot dichiarati, proxy fidati, CPU e URL.
+
+Aggiornamento centrale: `bash deploy/update-central-v08.sh` dopo `git pull`; aggiornamento dei collector gia' configurati: `bash deploy/update-agent-v08.sh`, su ciascun server interessato. Le analisi 10m nuove mostreranno gli aggregati completi del campione; per i report precedenti nessuna ricostruzione artificiale dei dati mancanti.
