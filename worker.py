@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import delete, select
 from app.db import Session, Server, Job, Analysis, DailyMarker, init_db, utcnow
 from app.analysis import analyze, rule_based
+from app.zabbix_cpu import fetch_cpu_history
 
 TZ = ZoneInfo(os.getenv("TZ", "Europe/Rome"))
 
@@ -39,6 +40,45 @@ def enqueue_nightly():
             db.add(Job(server_id=server.id, kind="nightly", incident_name=f"Audit notturno {day}",
                        context={"day": day}, state="queued"))
     print(f"[scheduler] audit notturno {day} accodato", flush=True)
+
+
+def enqueue_hourly_access():
+    """Una fotografia 10m ogni ora per server; marker DB evita duplicati al riavvio."""
+    if os.getenv("HOURLY_ACCESS_ENABLED", "true").lower() not in ("1", "true", "yes"):
+        return
+    now = local_now()
+    # Distribuire il prelievo dopo l'inizio dell'ora, non alle 00:00.
+    if not (2 <= now.minute <= 10):
+        return
+    day = now.strftime("%Y-%m-%d")
+    marker = f"traffic_h{now.hour:02d}"
+    with Session.begin() as db:
+        if marker_exists(db, marker, day):
+            return
+        db.add(DailyMarker(kind=marker, day=day))
+        created = 0
+        for server in db.scalars(select(Server).where(Server.enabled.is_(True))):
+            # Non duplicare richieste recenti o gia' attive sullo stesso server.
+            busy = db.scalar(select(Job).where(
+                Job.server_id == server.id,
+                Job.kind == "access_check",
+                Job.state.in_(["queued", "leased", "collected", "processing"])
+            ).order_by(Job.id.desc()))
+            recent = db.scalar(select(Job).where(
+                Job.server_id == server.id,
+                Job.kind == "access_check",
+                Job.state == "done",
+                Job.created_at >= utcnow() - timedelta(minutes=10)
+            ).order_by(Job.id.desc()))
+            if busy or recent:
+                continue
+            db.add(Job(server_id=server.id, kind="access_check",
+                       incident_name="Controllo crawler automatico - ultimi 10 minuti",
+                       context={"minutes": 10, "scope": "access", "automatic": True,
+                                "hour": now.strftime("%Y-%m-%d %H:00 %z")},
+                       state="queued"))
+            created += 1
+    print(f"[scheduler] traffico orario {day} {now.hour:02d}: {created} controlli accodati", flush=True)
 
 
 def send_mail(day, records):
@@ -122,6 +162,10 @@ def run_one():
         job.updated_at = utcnow()
         job_id = job.id
         kind, context, payload = job.kind, job.context or {}, job.payload or {}
+        zabbix_host = job.server.zabbix_host
+    if kind in ("access_check", "incident", "traffic_check"):
+        payload = dict(payload)
+        payload["zabbix_cpu"] = fetch_cpu_history(zabbix_host, payload)
     try:
         diag, ai_used = analyze(payload, kind, context)
     except Exception as exc:
@@ -133,6 +177,7 @@ def run_one():
         job = db.get(Job, job_id)
         if not job:
             return True
+        job.payload = payload
         db.add(Analysis(job_id=job_id, severity=diag["severity"], summary=diag["summary"], diagnosis=diag, ai_used=ai_used))
         job.state = "done"
         job.error = None
@@ -161,6 +206,7 @@ if __name__ == "__main__":
     while True:
         try:
             enqueue_nightly()
+            enqueue_hourly_access()
             maybe_mail()
             recover_stuck_processing()
             completed = run_one()
