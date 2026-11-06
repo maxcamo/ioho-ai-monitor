@@ -118,4 +118,6 @@ def test_dashboard_severity_is_report_link_and_redundant_sentence_removed():
     assert "Le due colonne sono indipendenti." not in response.text
     assert "OpenAI non configurata: analisi per regole locali." not in response.text
     assert "status-report-link" in response.text
-    assert "class=\"domain-summary\"" in response.text
+    main_table = response.text.split("Stato per tipologia", 1)[1].split("Attività recente", 1)[0]
+    assert "class=\"domain-updated\"" in main_table
+    assert "class=\"domain-summary\"" not in main_table
