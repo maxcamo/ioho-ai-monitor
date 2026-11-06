@@ -5,11 +5,11 @@ Nella **Panoramica** e nella pagina di ogni server sono presenti due azioni:
 - **Accessi 10m** (`access_check`): raccoglie SOLO access.log, aggrega ultimi 5/10 minuti per IP, URL, filtri, status e ritmo/minuto, quindi avvia diagnosi AI (se OPENAI_API_KEY configurata).
 - **Applicativi 60m** (`app_check`): raccoglie SOLO log applicativi Magento negli ultimi 60 minuti e raggruppa firme di errore, frequenza e picchi, quindi avvia diagnosi AI.
 
-I pulsanti sono protetti da HTTP Basic e verifica same-origin, usano POST, accodano un job per server e categoria con limite anti-duplicazione di 2 minuti. Sono operazioni di **sola lettura**; non provocano stress artificiale e non modificano Nginx/Magento. Ogni report e' distinto dall'audit generale e non sovrascrive il suo stato di salute. I log vengono campionati entro i budget configurati; la diagnosi segnala le limitazioni. L'AI legge solo aggregati depurati, non IP sorgente o righe grezze.
+I pulsanti sono protetti da HTTP Basic e verifica same-origin, usano POST, accodano un job per server e categoria con limite anti-duplicazione di 2 minuti. Sono operazioni di **sola lettura**; non provocano stress artificiale e non modificano Nginx/Magento. Ogni report è distinto dall'audit generale e non sovrascrive il suo stato di salute. I log vengono campionati entro i budget configurati; la diagnosi segnala le limitazioni. L'AI legge solo aggregati depurati, non IP sorgente o righe grezze.
 
-Aggiornamento su ai-control: `bash deploy/update-central-v05.sh` dal clone GitHub. Aggiornamento sui collector gia installati: `bash deploy/update-agent-v05.sh`; aggiornare prima la console e poi gli agenti.
+Aggiornamento su ai-control: `bash deploy/update-central-v05.sh` dal clone GitHub. Aggiornamento sui collector già installati: `bash deploy/update-agent-v05.sh`; aggiornare prima la console e poi gli agenti.
 
-**Per abilitare l'AI:** configurare `OPENAI_API_KEY` nell'`.env` della console centrale e ricreare solo `api` e `worker` con Docker Compose, per aggiornare sia la diagnosi sia l'indicatore AI nell'interfaccia. Senza chiave i pulsanti generano report con diagnosi per regole e la dashboard lo dichiara esplicitamente. Non mettere la chiave su GitHub o sui server Magento.
+**Per abilitare l'AI:** configurare `OPENAI_API_KEY` nell'`.env` della console centrale e ricreare solo il worker con Docker Compose. Senza chiave i pulsanti generano report con diagnosi per regole e la dashboard lo dichiara esplicitamente. Non mettere la chiave su GitHub o sui server Magento.
 
 ---
 
@@ -209,25 +209,13 @@ python3 -m pytest -q tests
 - Accesso console con utenti e audit trail/SSO, confidenze calibrate su esempi reali.
 - Sistema d'avviso push in UI/email distinto dai trigger, limiti di costo AI per server/tenant.
 
-## v0.4 — Diagnosi istantanea access.log (5/10 minuti)
 
-La pagina incidente riporta richieste nelle finestre 5 e 10 minuti, IP e URL piu attivi, top IP x URL, filtri Magento, risposte 403/410/429/444, ritmo per minuto e indicazioni sul campionamento incompleto.
+## v0.4 - Analisi traffico incidente (5/10 minuti)
 
-Un picco, un User-Agent bot o risposte 403/410 non dimostrano da soli un attacco. Gli IP X-Forwarded-For non sono affidabili se il proxy non ne convalida l'origine. Correlare con CPU Zabbix e processi.
+Per un **evento incidente Zabbix**, il collector calcola istantanee separate degli ultimi 5 e 10 minuti del solo access log: top URL normalizzate, top IP, IP x URL, query filtrate, risposte 403/410/429/444, picco/minuto e trend minuto per minuto. L'interfaccia segnala quando l'access log e' troncato; non sostituisce il confronto con CPU, PHP-FPM e WAF.
 
-Per testare manualmente senza fingere un allarme CPU:
+Per gli incidenti il budget predefinito viene elevato fino a 16 MB per access log e 40 MB per raccolta complessiva (configurabili con `incident_access_bytes` e `incident_total_bytes`, tetti hard di 24/60 MB); gli audit notturni mantengono i limiti esistenti. Serve aggiornare **sia console che collector**, installando `collector.py` e `traffic_analysis.py` nella stessa directory. Gli audit storici non acquisiscono retroattivamente questi dati.
 
-```bash
-clear
-cd /opt/ioho-ai-monitor
-docker compose exec -T api python manage.py run-traffic pro-service.ioho.com
-```
-
-Il job traffic_check raccoglie 20 minuti di evidenze e mostra separatamente gli ultimi 5 e 10 minuti; il comando deduplica gli ultimi tre minuti.
-
-Distribuzione: aggiornare la console FastAPI/worker (git pull e rebuild) e copiare ENTRAMBI i file agent/collector.py e agent/traffic_analysis.py nella stessa directory /opt/ioho-agent/ su ciascun server. Riavviare soltanto il servizio ioho-ai-agent.
-
-Durante gli incidenti vengono letti per default fino a 16 MB per file access e 40 MB di log totali (tetti 24/60 MB, configurabili tramite incident_access_bytes e incident_total_bytes). Gli audit notturni mantengono i limiti esistenti. I payload all'API AI escludono le associazioni IP-URL.
 
 ## v0.6 - Doppio stato e finestre indipendenti
 
@@ -245,3 +233,16 @@ cd /tmp/ioho-ai-monitor
 git pull --ff-only origin main
 bash deploy/update-central-v06.sh
 ```
+
+
+## v0.7 — rapporto operativo access.log
+
+La pagina di analisi Accessi mostra prima le richieste, la classifica dei top IP,
+le URL con filtri e quelle senza filtri, le coppie IP×URL, il ritmo minuto e lo stato HTTP.
+L'analisi 5 minuti è secondaria e le tabelle ridondanti sono rimosse dal report manuale HTTP.
+La versione 0.7 è compatibile con i collector v0.5 e con i vecchi payload già salvati:
+la classifica URL senza filtri dei report preesistenti è ricavata solo dalle top URL
+che erano state archiviate, ed è segnalata come **parziale**. Non equivale
+alla lettura integrale dell'access.log.
+Per aggiornare la console: `bash deploy/update-central-v07.sh`.
+Nessun upgrade agente è richiesto per questa modifica di visualizzazione.
