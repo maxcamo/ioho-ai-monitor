@@ -12,6 +12,19 @@
 .log-group{border-top:1px solid var(--line);padding:0 2px}.log-group summary{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;cursor:pointer;list-style:none}.log-group summary::-webkit-details-marker{display:none}.log-group summary::before{content:"▸";color:var(--blue);flex:none}.log-group[open] summary::before{content:"▾"}.log-signature{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.84rem;overflow-wrap:anywhere;flex:1;min-width:0}.log-expanded{padding:4px 9px 15px 24px}.log-expanded h4{font-size:.83rem;font-weight:600;margin:12px 0 8px}.log-example{border-left:2px solid var(--line);padding-left:10px;margin:11px 0}.log-example pre{white-space:pre-wrap;word-break:break-word;margin:6px 0;font-size:.79rem;color:var(--dim)}
 
 .ranked-errors{min-width:870px;margin-top:18px}.ranked-errors thead th:first-child{width:42%}.ranked-errors thead th:not(:first-child){text-align:center}.ranked-errors .error-row-cell{padding:0!important}.ranked-error summary{display:grid;grid-template-columns:minmax(270px,3.3fr) repeat(4,minmax(78px,1fr)) minmax(105px,1.15fr);align-items:center;gap:10px;padding:13px 9px;cursor:pointer;list-style:none}.ranked-error summary::-webkit-details-marker{display:none}.ranked-error summary:hover{background:#15233a}.ranked-error[open] summary{background:#18273f}.ranked-error .err-title{min-width:0;overflow-wrap:anywhere;font-weight:540;padding-left:20px;position:relative}.ranked-error .err-title::before{content:'▸';color:var(--blue);position:absolute;left:1px}.ranked-error[open] .err-title::before{content:'▾'}.ranked-error .err-number{text-align:center;font-variant-numeric:tabular-nums;font-weight:700}.ranked-error summary>span:last-child{text-align:center}.ranked-error .err-detail{padding:16px 25px 20px;background:#0d182a;border-top:1px solid var(--line)}.ranked-error .err-detail h4{margin:12px 0;font-size:.9rem}.error-table-wrap{overflow-x:auto}.ranked-error pre{max-width:100%;overflow-wrap:anywhere;white-space:pre-wrap;word-break:break-word}
+
+.traffic-period{border-top:1px solid var(--line);margin-top:12px}
+.traffic-period>summary{cursor:pointer;padding:15px 0;list-style:none;color:var(--blue)}
+.traffic-period>summary::-webkit-details-marker{display:none}
+.traffic-period>summary::before{content:"▸ ";color:var(--blue)}
+.traffic-period[open]>summary::before{content:"▾ "}
+.traffic-period-body{padding-bottom:16px}
+.traffic-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.traffic-stats .inner{padding:13px}
+.traffic-table{min-width:0}
+.traffic-table td,.traffic-table th{font-size:.77rem;padding:7px 5px}
+@media(max-width:850px){.traffic-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.traffic-stats{grid-template-columns:1fr 1fr}}
 </style></head><body>
 <header class="topbar"><a class="brand" href="/">IOHO <small>AI Monitor</small></a><nav><a href="/">Panoramica</a><a href="/">Server e incidenti</a></nav></header>
 <main>{% block content %}{% endblock %}<div class="foot">IOHO AI Monitor · diagnosi assistita, non interventi automatici. Dati aggiornati ogni 45 secondi. L'assenza di evidenze non esclude incidenti.</div></main>
