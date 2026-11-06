@@ -3,7 +3,7 @@
 {% block content %}
 <div class="split"><div><div class="eyebrow">Infrastructure operations</div><h1>Panoramica server</h1><div class="sub">Diagnosi separate per errori Magento e traffico HTTP · {{ now.strftime('%d/%m/%Y %H:%M') }} UTC</div></div><span class="pill unknown">{{ servers|length }} server registrati</span></div>
 <div class="domain-overview">
-  {% for name, scope, description in [('Problemi applicativi', 'app', 'Log Magento · ultime 24 ore'), ('Traffico / crawler', 'access', 'access.log · ultimi 10 minuti · ogni ora')] %}
+  {% for name, scope, description in [('Problemi applicativi', 'app', 'Log Magento · ultime 24 ore · ogni ora'), ('Traffico / crawler', 'access', 'access.log · ultimi 10 minuti · ogni ora')] %}
   <section class="domain-box">
     <div class="eyebrow">{{ description }}</div><h2>{{ name }}</h2>
     <div class="status-counts">
@@ -17,7 +17,7 @@
 </div>
 <section class="panel">
   <div class="split"><div><h2>Stato per tipologia</h2></div></div>
-  <div class="status-table-wrap"><table class="table domain-table"><thead><tr><th>Server / collector</th><th>Problemi applicativi <span class="sub">(24h)</span></th><th>Traffico e crawler <span class="sub">(10m · auto ogni ora)</span></th></tr></thead><tbody>
+  <div class="status-table-wrap"><table class="table domain-table"><thead><tr><th>Server / collector</th><th>Problemi applicativi <span class="sub">(24h · auto ogni ora)</span></th><th>Traffico e crawler <span class="sub">(10m · auto ogni ora)</span></th></tr></thead><tbody>
   {% for s in servers %}
   <tr>
     <td class="server-id"><a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a><div class="sub mono">Zabbix: {{ s.zabbix_host }}</div><div class="server-health">{% if s.stale %}<span class="error">Collector offline / heartbeat assente</span>{% else %}<span class="ok">Collector online</span>{% endif %}</div></td>
@@ -26,14 +26,13 @@
     <td class="domain-cell">
       <div class="domain-result">{% if check.report_id %}<a class="pill {{ check.status }} status-report-link" href="/incident/{{ check.report_id }}" title="Apri il report {{ 'applicativo' if scope == 'app' else 'accessi' }}">{{ 'DA AGGIORNARE' if check.outdated else 'NON VERIFICATO' if check.status == 'unknown' else check.status.upper() }}</a>{% else %}<span class="pill {{ check.status }}">{{ 'NON VERIFICATO' if check.status == 'unknown' else check.status.upper() }}</span>{% endif %}
       {% if check.pending_id %}<a class="sub" href="/incident/{{ check.pending_id }}">Analisi in corso #{{ check.pending_id }}</a>{% elif check.failed_id %}<a class="sub error" href="/incident/{{ check.failed_id }}">Ultimo tentativo fallito</a>{% endif %}</div>
-      {% if check.report_id %}<div class="domain-summary">{{ check.summary }}</div><div class="sub">Ultimo controllo: {{ check.timestamp.strftime('%d/%m %H:%M UTC') if check.timestamp else '—' }}{% if check.outdated %} · esito storico: {{ check.last_severity.upper() }}{% endif %}</div>{% else %}<div class="sub">Nessun report {{ 'applicativo' if scope == 'app' else 'HTTP' }} completato.</div>{% endif %}
+      {% if check.report_id %}<div class="domain-updated">Ultimo aggiornamento: {{ check.timestamp.strftime('%d/%m %H:%M UTC') if check.timestamp else '—' }}{% if check.outdated %} · esito precedente: {{ check.last_severity.upper() }}{% endif %}</div>{% else %}<div class="domain-updated">Nessuna analisi completata</div>{% endif %}
       <form class="domain-action" method="post" action="/server/{{ s.id }}/analyze/{{ scope }}"><button type="submit" class="analysis-btn compact">{{ label }}</button></form>
     </td>
     {% endfor %}
   </tr>
   {% else %}<tr><td colspan="3">Nessun server registrato.</td></tr>{% endfor %}
   </tbody></table></div>
-  <p class="sub">Accessi: fotografia degli ultimi 10 minuti, raccolta automaticamente ogni ora (o su richiesta), considerata da aggiornare dopo 75 minuti. Applicativi: analisi manuale delle ultime 24 ore, da aggiornare dopo 30 ore. Gli audit misti e gli allarmi Zabbix restano nello storico.</p>
 </section>
 <section class="panel"><h2>Attività recente</h2>
 <table class="table"><thead><tr><th>Data (UTC)</th><th>Server</th><th>Analisi</th><th>Stato job</th><th>Diagnosi</th></tr></thead><tbody>
