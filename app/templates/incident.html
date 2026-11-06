@@ -2,7 +2,7 @@
 {% block title %}Incidente #{{ job.id }} · IOHO AI Monitor{% endblock %}
 {% block content %}
 <div class="breadcrumb"><a href="/">Panoramica</a> / <a href="/server/{{ server.id }}">{{ server.name }}</a> / Analisi #{{ job.id }}</div>
-<div class="split"><div><div class="eyebrow">{{ 'Trigger Zabbix' if job.kind == 'incident' else 'Controllo notturno / manuale' }} · {{ job.created_at.strftime('%d/%m/%Y %H:%M UTC') }}</div><h1>{{ job.incident_name or 'Analisi tecnica' }}</h1><div class="sub">{{ server.name }} · job {{ job.state }}</div></div><span class="pill {{ analysis.severity if analysis else 'unknown' }}">{{ analysis.severity if analysis else 'IN ELABORAZIONE' }}</span></div>
+<div class="split"><div><div class="eyebrow">{{ 'Trigger Zabbix' if job.kind == 'incident' else 'Analisi traffico manuale' if job.kind == 'traffic_check' else 'Controllo notturno / manuale' }} · {{ job.created_at.strftime('%d/%m/%Y %H:%M UTC') }}</div><h1>{{ job.incident_name or 'Analisi tecnica' }}</h1><div class="sub">{{ server.name }} · job {{ job.state }}</div></div><span class="pill {{ analysis.severity if analysis else 'unknown' }}">{{ analysis.severity if analysis else 'IN ELABORAZIONE' }}</span></div>
 {% if analysis %}
 <section class="panel"><div class="eyebrow">Diagnosi {{ 'OpenAI' if analysis.ai_used else 'basata su regole (AI non utilizzata)' }}</div><h2 style="margin-top:8px">{{ diagnosis.summary }}</h2><p><strong>Possibile causa:</strong> {{ diagnosis.probable_cause }}</p><p><strong>Confidenza AI:</strong> {{ diagnosis.confidence }}</p>
 <div class="grid"><div class="inner"><h3>Evidenze</h3><ul>{% for x in diagnosis.evidence %}<li>{{ x }}</li>{% else %}<li>Non disponibili</li>{% endfor %}</ul></div><div class="inner"><h3>Azioni consigliate</h3><ol>{% for x in diagnosis.recommendations %}<li>{{ x }}</li>{% else %}<li>Verificare direttamente il server</li>{% endfor %}</ol></div></div>
@@ -12,7 +12,7 @@
 {% else %}<section class="panel"><p>Raccolta o analisi in corso. La pagina si aggiorna automaticamente.</p></section>{% endif %}
 {% if data %}
 
-{% if job.kind == 'incident' and data.traffic %}
+{% if job.kind in ['incident', 'traffic_check'] and data.traffic %}
 <section class="panel">
   <div class="split"><div><div class="eyebrow">Diagnosi rapida access.log</div>
     <h2 style="margin:5px 0">Chi sta chiamando Magento?</h2>
@@ -71,7 +71,7 @@
   {% endfor %}
   <p class="sub">Un picco o uno User-Agent bot non prova un attacco. Gli IP X-Forwarded-For possono essere falsificati se il proxy non li valida. Molti 403/410 possono essere richieste respinte prima di Magento: correlare sempre con CPU e processi.</p>
 </section>
-{% elif job.kind == 'incident' %}
+{% elif job.kind in ['incident', 'traffic_check'] %}
 <section class="panel"><h2>Diagnosi traffico ultimi 5/10 minuti</h2>
   <p class="sub">Questo incidente è stato acquisito con un collector precedente: aggiornare l'agente e creare un nuovo evento di test per vedere IP × URL e andamento per minuto.</p>
 </section>
