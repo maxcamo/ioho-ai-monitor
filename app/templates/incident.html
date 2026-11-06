@@ -11,6 +11,71 @@
 {% elif job.error %}<section class="panel"><p class="error">{{ job.error }}</p></section>
 {% else %}<section class="panel"><p>Raccolta o analisi in corso. La pagina si aggiorna automaticamente.</p></section>{% endif %}
 {% if data %}
+
+{% if job.kind == 'incident' and data.traffic %}
+<section class="panel">
+  <div class="split"><div><div class="eyebrow">Diagnosi rapida access.log</div>
+    <h2 style="margin:5px 0">Chi sta chiamando Magento?</h2>
+    <p class="sub">Fotografia degli ultimi 5 e 10 minuti alla raccolta {{ data.traffic.captured_at }} (UTC). I conteggi si riferiscono alle sole righe lette.</p></div>
+    <span class="pill warning">Incidente CPU</span>
+  </div>
+  {% if data.coverage.access_truncated %}
+  <p class="sub warning"><strong>Access log campionato:</strong> la parte finale dei log letti potrebbe non coprire tutti i 5/10 minuti. Non interpretare i conteggi come totali certi.</p>
+  {% endif %}
+  {% for label in ['10', '5'] %}
+  {% set t = data.traffic.windows[label] %}
+  <details class="traffic-period" {% if label == '10' %}open{% endif %}>
+    <summary><strong>Ultimi {{ label }} minuti</strong> · {{ t.total }} richieste · massimo {{ t.peak_per_minute }}/min</summary>
+    <div class="traffic-period-body">
+      <div class="traffic-stats">
+        <div class="inner"><div class="eyebrow">Richieste</div><div class="number">{{ t.total }}</div><div class="sub">Media {{ t.rpm }}/min</div></div>
+        <div class="inner"><div class="eyebrow">IP osservati</div><div class="number">{{ t.unique_ips_observed }}</div><div class="sub">IP da log Nginx</div></div>
+        <div class="inner"><div class="eyebrow">Richieste con filtri</div><div class="number">{{ t.filtered_hits }}</div><div class="sub">Filtri Magento riconosciuti</div></div>
+        <div class="inner"><div class="eyebrow">403 / 410 / 429 / 444</div><div class="number">{{ t.blocked_hits }}</div><div class="sub">Origine restrizione da verificare</div></div>
+      </div>
+      <p class="sub">Prima riga nel campione: {{ t.observed_from or '—' }} · ultima: {{ t.observed_to or '—' }} · HTTP 5xx: {{ t.http_5xx }} · User-Agent che dichiarano bot: {{ t.bot_ua_hits }}.</p>
+      {% if t.aggregation_capped %}<p class="sub warning">Molte chiavi distinte: dettaglio aggregazioni limitato per proteggere la memoria.</p>{% endif %}
+      <div class="grid">
+        <div class="inner"><h3>URL più richieste</h3>
+          <table class="table traffic-table"><thead><tr><th>URL (query senza valori)</th><th>Rich.</th><th>403/410/429/444</th></tr></thead><tbody>
+          {% for u in t.top_urls %}<tr><td class="mono">{{ u.url }}</td><td>{{ u.count }}</td><td>{{ u.blocked }}</td></tr>
+          {% else %}<tr><td colspan="3">Nessuna richiesta osservata</td></tr>{% endfor %}</tbody></table>
+        </div>
+        <div class="inner"><h3>IP più attivi e URL prevalenti</h3>
+          <table class="table traffic-table"><thead><tr><th>IP / URL</th><th>Rich.</th><th>Picco/min</th><th>Filtri</th><th>403/410/429/444</th></tr></thead><tbody>
+          {% for ip in t.top_clients %}<tr><td><div class="mono"><strong>{{ ip.ip }}</strong></div>
+            {% for u in ip.top_urls[:2] %}<div class="sub mono">{{ u[0] }} ({{ u[1] }})</div>{% endfor %}
+            {% if ip.indicators %}<div class="sub warning">Da verificare: {{ ip.indicators|join(', ') }}</div>{% endif %}</td>
+            <td>{{ ip.count }}</td><td>{{ ip.peak_per_minute }}</td><td>{{ ip.filtered }}</td><td>{{ ip.blocked }}</td></tr>
+          {% else %}<tr><td colspan="5">Nessun dato</td></tr>{% endfor %}</tbody></table>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:14px">
+        <div class="inner"><h3>Top combinazioni IP × URL</h3>
+          <table class="table traffic-table"><thead><tr><th>IP</th><th>URL</th><th>Rich.</th></tr></thead><tbody>
+          {% for pair in t.top_ip_urls %}<tr><td class="mono">{{ pair.ip }}</td><td class="mono">{{ pair.url }}</td><td>{{ pair.count }}</td></tr>
+          {% else %}<tr><td colspan="3">Nessun dato</td></tr>{% endfor %}</tbody></table>
+        </div>
+        <div class="inner"><h3>Filtri Magento più richiesti</h3>
+          <table class="table traffic-table"><thead><tr><th>URL filtrata</th><th>Rich.</th></tr></thead><tbody>
+          {% for path, n in t.top_filtered_urls %}<tr><td class="mono">{{ path }}</td><td>{{ n }}</td></tr>
+          {% else %}<tr><td colspan="2">Nessun filtro riconosciuto</td></tr>{% endfor %}</tbody></table>
+          <h3 style="margin-top:18px">Richieste per minuto (UTC)</h3>
+          <table class="table traffic-table"><thead><tr><th>Minuto</th><th>Rich.</th></tr></thead><tbody>
+          {% for minute, n in t.per_minute %}<tr><td class="mono">{{ minute }}</td><td>{{ n }}</td></tr>
+          {% else %}<tr><td colspan="2">Nessun dato</td></tr>{% endfor %}</tbody></table>
+        </div>
+      </div>
+    </div>
+  </details>
+  {% endfor %}
+  <p class="sub">Un picco o uno User-Agent bot non prova un attacco. Gli IP X-Forwarded-For possono essere falsificati se il proxy non li valida. Molti 403/410 possono essere richieste respinte prima di Magento: correlare sempre con CPU e processi.</p>
+</section>
+{% elif job.kind == 'incident' %}
+<section class="panel"><h2>Diagnosi traffico ultimi 5/10 minuti</h2>
+  <p class="sub">Questo incidente è stato acquisito con un collector precedente: aggiornare l'agente e creare un nuovo evento di test per vedere IP × URL e andamento per minuto.</p>
+</section>
+{% endif %}
 <section class="panel"><h2>Indicatori osservati</h2><div class="grid"><div class="inner"><div class="eyebrow">Richieste Nginx esaminate</div><div class="number">{{ data.access.total if data.access else '—' }}</div><div class="sub">Finestra: {{ data.window_minutes }} minuti</div></div><div class="inner"><div class="eyebrow">Richieste su URL filtrate</div><div class="number">{{ data.access.filtered_requests if data.access else '—' }}</div><div class="sub">UA bot noti: {{ data.access.known_bot_user_agent_hits if data.access else '—' }}</div></div></div>
 {% if data.coverage %}<p class="sub">Copertura: {{ data.coverage.matched }} file analizzati; {% if data.coverage.truncated %}<strong class="warning">lettura parziale</strong>{% else %}nessun troncamento rilevato{% endif %}; access log {% if data.coverage.no_access_log %}<strong class="error">non disponibile</strong>{% else %}presente{% endif %}.</p>{% endif %}
 <div class="grid"><div class="inner"><h3>HTTP status</h3><table class="table" style="min-width:0">{% for code,n in data.access.statuses.items() if data.access %}<tr><td>{{ code }}</td><td>{{ n }}</td></tr>{% endfor %}</table></div><div class="inner"><h3>Processi CPU (istantanea ps)</h3><table class="table" style="min-width:0"><thead><tr><th>Processo</th><th>%CPU*</th></tr></thead>{% for p in data.processes %}<tr><td class="mono">{{ p.command }}</td><td>{{ p.cpu_percent }}</td></tr>{% endfor %}</table><div class="sub">*%CPU ps è una media, non il valore istantaneo Zabbix.</div></div></div></section>
