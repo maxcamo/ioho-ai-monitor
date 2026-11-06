@@ -12,6 +12,7 @@ from sqlalchemy import select, func, or_
 from app.db import Session, Server, Job, Analysis, init_db, utcnow
 from app.security import agent_auth, dashboard_auth, webhook_auth
 from app.log_groups import build_error_groups
+from app.traffic_view import make_traffic_report
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -242,4 +243,5 @@ def incident_page(job_id: int, request: Request, _: str = Depends(dashboard_auth
         groups, legacy = build_error_groups(job.payload or {})
         return views.TemplateResponse(request=request, name="incident.html", context={"job": job, "server": server, "analysis": analysis,
                "data": job.payload or {}, "diagnosis": analysis.diagnosis if analysis else {},
-               "error_groups": groups, "legacy_logs": legacy})
+               "error_groups": groups, "legacy_logs": legacy,
+               "traffic_report": make_traffic_report(job.payload or {})})
