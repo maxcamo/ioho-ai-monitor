@@ -107,18 +107,61 @@ async def agent_result(request: Request, server: Server = Depends(agent_auth)):
         return {"status": "accepted"}
 
 
+# Accessi e applicativi mantengono due stati autonomi: uno storico misto
+# (nightly / Zabbix) non puo' rappresentare l'esito di uno dei due controlli.
+DOMAIN_KINDS = {"access": "access_check", "app": "app_check"}
+DOMAIN_FRESHNESS = {"access": timedelta(minutes=20), "app": timedelta(hours=30)}
+ACTIVE_STATES = ("queued", "leased", "collected", "processing")
+
+
+def domain_result(db, server_id: int, scope: str, now: datetime) -> dict:
+    kind = DOMAIN_KINDS[scope]
+    # I vecchi app_check di 60 minuti non vanno presentati come
+    # controlli di 24 ore. Conserviamo comunque quei job nello storico.
+    def latest(state_filter):
+        candidates = db.scalars(select(Job).where(
+            Job.server_id == server_id, Job.kind == kind,
+            state_filter
+        ).order_by(Job.id.desc()).limit(50)).all()
+        return next((job for job in candidates if scope != "app" or
+                     int((job.context or {}).get("minutes", 0)) == 1440), None)
+
+    last = latest(Job.state == "done")
+    active = latest(Job.state.in_(ACTIVE_STATES))
+    failed = latest(Job.state == "error")
+    analysis = last.analysis if last else None
+    timestamp = last.updated_at if last else None
+    if timestamp is not None and timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    outdated = bool(timestamp and now - timestamp > DOMAIN_FRESHNESS[scope])
+    severity = analysis.severity if analysis else "unknown"
+    # Un errore o una raccolta in corso non cancellano l'ultimo report, ma
+    # ne impediscono l'interpretazione come stato attuale se ormai scaduto.
+    status = severity if analysis and not outdated else "unknown"
+    return {
+        "status": status,
+        "last_severity": severity,
+        "summary": analysis.summary if analysis else "Nessuna analisi specifica completata.",
+        "report_id": last.id if last else None,
+        "timestamp": timestamp,
+        "outdated": outdated,
+        "pending_id": active.id if active else None,
+        "failed_id": failed.id if failed and (not last or failed.id > last.id) else None,
+    }
+
+
 def display_servers(db):
     servers = db.scalars(select(Server).order_by(Server.name)).all()
+    now = utcnow()
     result = []
     for s in servers:
-        stale = not s.last_seen or (utcnow() - s.last_seen.replace(tzinfo=timezone.utc) if s.last_seen.tzinfo is None else utcnow() - s.last_seen) > timedelta(minutes=5)
-        status = "unknown" if stale else s.last_status
-        pending = db.scalar(select(Job).where(Job.server_id == s.id, Job.kind == "incident", Job.state.in_(["queued", "leased", "collected", "processing"])).order_by(Job.id.desc()))
-        if pending and not stale and status in ("unknown", "ok"):
-            status = "warning"
+        last_seen = s.last_seen
+        if last_seen is not None and last_seen.tzinfo is None:
+            last_seen = last_seen.replace(tzinfo=timezone.utc)
+        stale = not last_seen or now - last_seen > timedelta(minutes=5)
         result.append({"id": s.id, "name": s.name, "zabbix_host": s.zabbix_host,
-                       "status": status, "stale": stale, "last_seen": s.last_seen,
-                       "last_analysis_at": s.last_analysis_at})
+                       "stale": stale, "app": domain_result(db, s.id, "app", now),
+                       "access": domain_result(db, s.id, "access", now)})
     return result
 
 
@@ -131,7 +174,9 @@ def dashboard(request: Request, _: str = Depends(dashboard_auth)):
             job.server.name  # eagerly read before session closes
             if job.analysis:
                 job.analysis.severity
-        counters = {x: sum(1 for s in servers if s["status"] == x) for x in ("ok", "warning", "critical", "unknown")}
+        counters = {scope: {status: sum(1 for s in servers if s[scope]["status"] == status)
+                            for status in ("ok", "warning", "critical", "unknown")}
+                    for scope in ("app", "access")}
         return views.TemplateResponse(request=request, name="index.html", context={"servers": servers, "jobs": jobs, "counters": counters, "now": utcnow(), "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
 
 
@@ -146,7 +191,7 @@ def request_manual_analysis(server_id: int, scope: str, request: Request, _: str
     if not origin or urlsplit(origin).netloc.lower() != host:
         raise HTTPException(status_code=403, detail="Origine richiesta non valida")
     kind = "access_check" if scope == "access" else "app_check"
-    minutes = 10 if scope == "access" else 60
+    minutes = 10 if scope == "access" else 1440
     with Session.begin() as db:
         server = db.get(Server, server_id)
         if not server or not server.enabled:
@@ -163,7 +208,7 @@ def request_manual_analysis(server_id: int, scope: str, request: Request, _: str
         else:
             job = Job(server_id=server_id, kind=kind, state="queued",
                       incident_name=("Analisi access.log - ultimi 10 minuti" if scope == "access"
-                                     else "Analisi log applicativi - ultimi 60 minuti"),
+                                     else "Analisi log applicativi - ultime 24 ore"),
                       context={"manual": True, "minutes": minutes, "scope": scope})
             db.add(job)
             db.flush()
@@ -181,7 +226,9 @@ def server_page(server_id: int, request: Request, _: str = Depends(dashboard_aut
         for job in jobs:
             if job.analysis:
                 job.analysis.summary
-        return views.TemplateResponse(request=request, name="server.html", context={"server": server, "jobs": jobs, "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
+        status_app = domain_result(db, server_id, "app", utcnow())
+        status_access = domain_result(db, server_id, "access", utcnow())
+        return views.TemplateResponse(request=request, name="server.html", context={"server": server, "jobs": jobs, "status_app": status_app, "status_access": status_access, "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
 
 
 @app.get("/incident/{job_id}", response_class=HTMLResponse)

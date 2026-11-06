@@ -32,6 +32,26 @@
 .analysis-btn:hover{background:#27558b}
 .analysis-btn:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
 .analysis-btn.compact{padding:6px 9px;font-size:.76rem}
+
+/* Status distinti per report applicativi e traffico, leggibili anche da mobile */
+.domain-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:25px 0}
+.domain-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;min-width:0}
+.domain-box h2{margin:8px 0 16px;font-size:1.2rem}
+.status-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.status-counts strong{display:block;font-size:1.7rem;line-height:1.2;font-variant-numeric:tabular-nums}
+.status-counts small{color:var(--dim);font-size:.73rem}
+.domain-table{min-width:850px;table-layout:fixed}
+.domain-table th:first-child{width:27%}.domain-table th:nth-child(2),.domain-table th:nth-child(3){width:36.5%}
+.domain-table td{padding:16px 12px}
+.domain-table .server-health{margin-top:12px;font-size:.83rem}
+.domain-table .domain-cell{background:rgba(9,17,30,.22)}
+.domain-cell .domain-result,.inner .domain-result{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-bottom:10px}
+.domain-cell .domain-summary{display:block;font-size:.86rem;line-height:1.4;margin-bottom:6px;max-width:38ch;overflow-wrap:anywhere}
+.domain-cell .domain-action{margin-top:12px}
+.domain-cell .domain-action button{max-width:100%;white-space:normal;text-align:center}
+.status-table-wrap{overflow-x:auto}
+@media(max-width:800px){.domain-overview{grid-template-columns:1fr}.domain-table{min-width:730px}}
+@media(max-width:480px){.status-counts{gap:6px}.status-counts strong{font-size:1.4rem}}
 </style></head><body>
 <header class="topbar"><a class="brand" href="/">IOHO <small>AI Monitor</small></a><nav><a href="/">Panoramica</a><a href="/">Server e incidenti</a></nav></header>
 <main>{% block content %}{% endblock %}<div class="foot">IOHO AI Monitor · diagnosi assistita, non interventi automatici. Dati aggiornati ogni 45 secondi. L'assenza di evidenze non esclude incidenti.</div></main>

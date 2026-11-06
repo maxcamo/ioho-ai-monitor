@@ -1,19 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Panoramica · IOHO AI Monitor{% endblock %}
 {% block content %}
-<div class="split"><div><div class="eyebrow">Infrastructure operations</div><h1>Panoramica server</h1><div class="sub">Monitoraggio dei log, incidenti Zabbix e analisi notturne · {{ now.strftime('%d/%m/%Y %H:%M') }} UTC</div></div><span class="pill unknown">{{ servers|length }} server registrati</span></div>
-<div class="stats">
-  <div class="stat"><div class="sub">Regolari</div><b class="ok">{{ counters.ok }}</b></div>
-  <div class="stat"><div class="sub">Warning</div><b class="warning">{{ counters.warning }}</b></div>
-  <div class="stat"><div class="sub">Critici</div><b class="critical">{{ counters.critical }}</b></div>
-  <div class="stat"><div class="sub">Non verificati</div><b class="unknown">{{ counters.unknown }}</b></div>
+<div class="split"><div><div class="eyebrow">Infrastructure operations</div><h1>Panoramica server</h1><div class="sub">Diagnosi separate per errori Magento e traffico HTTP · {{ now.strftime('%d/%m/%Y %H:%M') }} UTC</div></div><span class="pill unknown">{{ servers|length }} server registrati</span></div>
+<div class="domain-overview">
+  {% for name, scope, description in [('Problemi applicativi', 'app', 'Log Magento · ultime 24 ore'), ('Traffico / crawler', 'access', 'access.log · ultimi 10 minuti')] %}
+  <section class="domain-box">
+    <div class="eyebrow">{{ description }}</div><h2>{{ name }}</h2>
+    <div class="status-counts">
+      <div><strong class="ok">{{ counters[scope].ok }}</strong><small>Regolari</small></div>
+      <div><strong class="warning">{{ counters[scope].warning }}</strong><small>Warning</small></div>
+      <div><strong class="critical">{{ counters[scope].critical }}</strong><small>Critici</small></div>
+      <div><strong class="unknown">{{ counters[scope].unknown }}</strong><small>Da verificare</small></div>
+    </div>
+  </section>
+  {% endfor %}
 </div>
-<section class="panel"><h2>Stato server</h2><p class="sub">Le due azioni a destra creano un audit separato su ciascun server. {% if not ai_ready %}<strong class="warning">AI non configurata: verranno usate regole locali.</strong>{% endif %}</p>
-<table class="table"><thead><tr><th>Cliente / server</th><th>Host Zabbix</th><th>Stato</th><th>Collector</th><th>Ultima analisi (UTC)</th><th>Analisi on-demand</th></tr></thead><tbody>
-{% for s in servers %}<tr><td><a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a></td><td class="mono">{{ s.zabbix_host }}</td><td><span class="pill {{ s.status }}">{{ 'NON VERIFICATO' if s.status == 'unknown' else s.status.upper() }}</span></td><td>{% if s.stale %}<span class="error">Offline / senza heartbeat</span>{% else %}<span class="ok">Online</span>{% endif %}</td><td>{{ s.last_analysis_at.strftime('%d/%m %H:%M') if s.last_analysis_at else '—' }}</td><td><div class="analysis-actions"><form method="post" action="/server/{{ s.id }}/analyze/access"><button type="submit" class="analysis-btn compact">Accessi 10m</button></form><form method="post" action="/server/{{ s.id }}/analyze/app"><button type="submit" class="analysis-btn compact">Applicativi 60m</button></form></div></td></tr>{% else %}<tr><td colspan="6">Nessun server registrato. Eseguire manage.py add-server.</td></tr>{% endfor %}
-</tbody></table></section>
+<section class="panel">
+  <div class="split"><div><h2>Stato per tipologia</h2><p class="sub">Le due colonne sono indipendenti. Ogni pulsante avvia solo il relativo controllo. {% if not ai_ready %}<strong class="warning">OpenAI non configurata: analisi per regole locali.</strong>{% endif %}</p></div></div>
+  <div class="status-table-wrap"><table class="table domain-table"><thead><tr><th>Server / collector</th><th>Problemi applicativi <span class="sub">(24h)</span></th><th>Traffico e crawler <span class="sub">(10m)</span></th></tr></thead><tbody>
+  {% for s in servers %}
+  <tr>
+    <td class="server-id"><a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a><div class="sub mono">Zabbix: {{ s.zabbix_host }}</div><div class="server-health">{% if s.stale %}<span class="error">Collector offline / heartbeat assente</span>{% else %}<span class="ok">Collector online</span>{% endif %}</div></td>
+    {% for scope, label in [('app', 'Analizza applicativi 24h'), ('access', 'Analizza accessi 10m')] %}
+    {% set check = s[scope] %}
+    <td class="domain-cell">
+      <div class="domain-result"><span class="pill {{ check.status }}">{{ 'DA AGGIORNARE' if check.outdated else 'NON VERIFICATO' if check.status == 'unknown' else check.status.upper() }}</span>
+      {% if check.pending_id %}<a class="sub" href="/incident/{{ check.pending_id }}">Analisi in corso #{{ check.pending_id }}</a>{% elif check.failed_id %}<a class="sub error" href="/incident/{{ check.failed_id }}">Ultimo tentativo fallito</a>{% endif %}</div>
+      {% if check.report_id %}<a class="domain-summary" href="/incident/{{ check.report_id }}">{{ check.summary }}</a><div class="sub">Ultimo controllo: {{ check.timestamp.strftime('%d/%m %H:%M UTC') if check.timestamp else '—' }}{% if check.outdated %} · esito storico: {{ check.last_severity.upper() }}{% endif %}</div>{% else %}<div class="sub">Nessun report {{ 'applicativo' if scope == 'app' else 'HTTP' }} completato.</div>{% endif %}
+      <form class="domain-action" method="post" action="/server/{{ s.id }}/analyze/{{ scope }}"><button type="submit" class="analysis-btn compact">{{ label }}</button></form>
+    </td>
+    {% endfor %}
+  </tr>
+  {% else %}<tr><td colspan="3">Nessun server registrato.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p class="sub">Gli esiti Accessi sono fotografie puntuali, non un monitoraggio continuo: dopo 20 minuti risultano da aggiornare. Gli esiti Applicativi sono da aggiornare dopo 30 ore. Gli audit misti storici e gli allarmi Zabbix restano consultabili nello storico senza essere attribuiti a una sola colonna.</p>
+</section>
 <section class="panel"><h2>Attività recente</h2>
-<table class="table"><thead><tr><th>Data (UTC)</th><th>Server</th><th>Tipo</th><th>Stato job</th><th>Diagnosi</th></tr></thead><tbody>
-{% for j in jobs %}<tr><td>{{ j.created_at.strftime('%d/%m %H:%M') }}</td><td><a href="/server/{{ j.server_id }}">{{ j.server.name }}</a></td><td>{{ 'Allarme Zabbix' if j.kind == 'incident' else 'Accessi 10m' if j.kind == 'access_check' else 'Applicativi 60m' if j.kind == 'app_check' else 'Traffico manuale' if j.kind == 'traffic_check' else 'Audit log' }}</td><td>{{ j.state }}</td><td><a href="/incident/{{ j.id }}">{% if j.analysis %}<span class="pill {{ j.analysis.severity }}">{{ j.analysis.severity }}</span> {{ j.analysis.summary[:95] }}{% else %}Apri dettagli{% endif %}</a></td></tr>{% else %}<tr><td colspan="5">Nessuna analisi ricevuta.</td></tr>{% endfor %}
+<table class="table"><thead><tr><th>Data (UTC)</th><th>Server</th><th>Analisi</th><th>Stato job</th><th>Diagnosi</th></tr></thead><tbody>
+{% for j in jobs %}<tr><td>{{ j.created_at.strftime('%d/%m %H:%M') }}</td><td><a href="/server/{{ j.server_id }}">{{ j.server.name }}</a></td><td>{{ 'Zabbix / misto' if j.kind == 'incident' else 'Accessi 10m' if j.kind == 'access_check' else 'Applicativi 24h' if j.kind == 'app_check' else 'Traffico manuale (storico)' if j.kind == 'traffic_check' else 'Audit misto (storico)' }}</td><td>{{ j.state }}</td><td><a href="/incident/{{ j.id }}">{% if j.analysis %}<span class="pill {{ j.analysis.severity }}">{{ j.analysis.severity }}</span> {{ j.analysis.summary[:95] }}{% else %}Apri dettagli{% endif %}</a></td></tr>{% else %}<tr><td colspan="5">Nessuna analisi ricevuta.</td></tr>{% endfor %}
 </tbody></table></section>
 {% endblock %}

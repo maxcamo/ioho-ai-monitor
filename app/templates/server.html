@@ -2,16 +2,23 @@
 {% block title %}{{ server.name }} · IOHO AI Monitor{% endblock %}
 {% block content %}
 <div class="breadcrumb"><a href="/">Panoramica</a> / {{ server.name }}</div>
-<div class="split"><div><div class="eyebrow">Server Magento</div><h1>{{ server.name }}</h1><div class="sub">Host tecnico Zabbix: <span class="mono">{{ server.zabbix_host }}</span></div></div><span class="pill {{ server.last_status }}">{{ server.last_status }}</span></div>
-<section class="panel"><h2>Analisi su richiesta</h2>
-  <p class="sub">Raccogli solo il tipo di log richiesto. Ogni analisi produce un report separato, senza creare traffico aggiuntivo sul sito.</p>
-  <div class="grid">
-    <div class="inner"><h3>Accessi HTTP</h3><p class="sub">Ultimi 10 minuti: richieste/minuto, IP più attivi, URL, filtri e codici HTTP.</p>
-      <form action="/server/{{ server.id }}/analyze/access" method="post"><button class="analysis-btn" type="submit">Analizza access.log + AI</button></form></div>
-    <div class="inner"><h3>Log applicativi</h3><p class="sub">Ultimi 60 minuti: errori Magento per tipologia, frequenza, picchi e possibili cause.</p>
-      <form action="/server/{{ server.id }}/analyze/app" method="post"><button class="analysis-btn" type="submit">Analizza log Magento + AI</button></form></div>
+<div class="split"><div><div class="eyebrow">Server Magento</div><h1>{{ server.name }}</h1><div class="sub">Host tecnico Zabbix: <span class="mono">{{ server.zabbix_host }}</span></div></div><span class="pill unknown">DUE DIAGNOSI INDIPENDENTI</span></div>
+<section class="panel"><h2>Analisi su richiesta</h2><p class="sub">Raccolta separata: accessi per rilevare traffico anomalo, applicativi per evidenziare eccezioni Magento. Non generiamo carico artificiale sul sito.</p>
+<div class="grid">
+  {% for label,scope,check,description,button in [('Problemi applicativi · 24 ore','app',status_app,'Errori Magento raggruppati, frequenza e picchi; la copertura dipende dai limiti di lettura.','Analizza applicativi 24h'), ('Traffico / crawler · 10 minuti','access',status_access,'URL, filtri, IP più attivi, HTTP 5xx e richieste al minuto.','Analizza accessi 10m')] %}
+  <div class="inner">
+    <h3>{{ label }}</h3>
+    <div class="domain-result"><span class="pill {{ check.status }}">{{ 'DA AGGIORNARE' if check.outdated else 'NON VERIFICATO' if check.status == 'unknown' else check.status.upper() }}</span></div>
+    <p class="sub">{{ description }}</p>
+    {% if check.report_id %}<p><a href="/incident/{{ check.report_id }}">{{ check.summary }}</a></p><p class="sub">Ultimo controllo: {{ check.timestamp.strftime('%d/%m/%Y %H:%M UTC') if check.timestamp else '—' }}{% if check.outdated %} · esito storico: {{ check.last_severity }}{% endif %}</p>{% else %}<p class="sub">Nessuna analisi dedicata completata.</p>{% endif %}
+    {% if check.pending_id %}<p class="sub"><a href="/incident/{{ check.pending_id }}">Analisi in corso #{{ check.pending_id }}</a></p>{% endif %}
+    <form action="/server/{{ server.id }}/analyze/{{ scope }}" method="post"><button class="analysis-btn" type="submit">{{ button }}</button></form>
   </div>
-  <p class="sub">{% if ai_ready %}Diagnosi OpenAI configurata; in caso di errore API viene utilizzata l'analisi per regole.{% else %}<strong class="warning">OpenAI non configurata:</strong> i pulsanti funzionano, ma il report userà soltanto regole locali finché non imposti OPENAI_API_KEY su ai-control.{% endif %} La raccolta è campionata per proteggere il server.</p>
+  {% endfor %}
+</div>
+<p class="sub">{% if ai_ready %}OpenAI configurata; in caso di errore API utilizzeremo regole locali.{% else %}<strong class="warning">OpenAI non configurata:</strong> i report useranno regole locali finché non imposti OPENAI_API_KEY su ai-control.{% endif %} I log possono essere campionati per proteggere il server.</p>
 </section>
-<div class="panel"><h2>Storico analisi</h2><table class="table"><thead><tr><th>Data UTC</th><th>Tipo</th><th>Allarme</th><th>Elaborazione</th><th>Priorità</th></tr></thead><tbody>{% for j in jobs %}<tr><td><a href="/incident/{{ j.id }}">{{ j.created_at.strftime('%d/%m/%Y %H:%M') }}</a></td><td>{{ j.kind }}</td><td>{{ j.incident_name }}</td><td>{{ j.state }}</td><td>{% if j.analysis %}<span class="pill {{ j.analysis.severity }}">{{ j.analysis.severity }}</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="5">Nessun evento.</td></tr>{% endfor %}</tbody></table></div>
+<section class="panel"><h2>Storico completo, compresi eventi Zabbix e audit misti precedenti</h2><table class="table"><thead><tr><th>Data UTC</th><th>Tipo</th><th>Allarme / controllo</th><th>Elaborazione</th><th>Priorità</th></tr></thead><tbody>
+{% for j in jobs %}<tr><td><a href="/incident/{{ j.id }}">{{ j.created_at.strftime('%d/%m/%Y %H:%M') }}</a></td><td>{{ 'Applicativi 24h' if j.kind == 'app_check' else 'Accessi 10m' if j.kind == 'access_check' else j.kind }}</td><td>{{ j.incident_name }}</td><td>{{ j.state }}</td><td>{% if j.analysis %}<span class="pill {{ j.analysis.severity }}">{{ j.analysis.severity }}</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="5">Nessun evento.</td></tr>{% endfor %}
+</tbody></table></section>
 {% endblock %}

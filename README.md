@@ -228,3 +228,20 @@ Il job traffic_check raccoglie 20 minuti di evidenze e mostra separatamente gli 
 Distribuzione: aggiornare la console FastAPI/worker (git pull e rebuild) e copiare ENTRAMBI i file agent/collector.py e agent/traffic_analysis.py nella stessa directory /opt/ioho-agent/ su ciascun server. Riavviare soltanto il servizio ioho-ai-agent.
 
 Durante gli incidenti vengono letti per default fino a 16 MB per file access e 40 MB di log totali (tetti 24/60 MB, configurabili tramite incident_access_bytes e incident_total_bytes). Gli audit notturni mantengono i limiti esistenti. I payload all'API AI escludono le associazioni IP-URL.
+
+## v0.6 - Doppio stato e finestre indipendenti
+
+La panoramica mostra **Problemi applicativi (24h)** e **Traffico / crawler (10m)** in colonne e riepiloghi separati. Ogni colonna usa esclusivamente il proprio `app_check` o `access_check` completato: i vecchi audit misti e i trigger Zabbix non vengono attribuiti arbitrariamente ad un dominio. Il monitor non indica mai che un controllo sia corrente dopo la scadenza: accessi aggiornabili dopo 20 minuti, applicativi dopo 30 ore. L'ultimo esito storico e il collegamento rimangono visibili.
+
+Il pulsante Applicativi ora accoda `app_check` con `minutes=1440` e `sections=["app"]`; Accessi mantiene `minutes=10` e `sections=["access"]`. Sono utilizzabili con collector v0.5; i collector precedenti vanno aggiornati per rispettare la selezione delle sezioni. Il monitor resta read-only.
+
+La chiave `OPENAI_API_KEY` e' opzionale, senza di essa la diagnosi usa regole locali. Un campionamento parziale di un log molto grande limita la confidenza; non equivale a copertura completa delle 24 ore.
+
+Per aggiornare solo la console, senza reinstallare i collector v0.5:
+
+```bash
+clear
+cd /tmp/ioho-ai-monitor
+git pull --ff-only origin main
+bash deploy/update-central-v06.sh
+```

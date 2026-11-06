@@ -62,12 +62,12 @@ def manual_rule_based(data: dict, kind: str) -> dict:
     peak = max((int(g.get("peak_per_minute", 0) or 0) for section in logs.values() for g in section.get("groups", [])), default=0)
     if not logs or (not total and partial):
         severity, summary = "unknown", "Dati applicativi insufficienti: verificare copertura e sorgenti Magento."
-    elif recent >= 100 or peak >= 15:
-        severity, summary = "warning", f"Errori applicativi ripetuti nell'ultima ora: {recent} occorrenze osservate; picco {peak}/min."
+    elif recent >= 100 or peak >= 15 or total >= 100:
+        severity, summary = "warning", f"Problemi applicativi nelle ultime 24 ore (campione): {total} occorrenze, {recent} nell'ultima ora; picco {peak}/min."
     else:
-        severity, summary = ("unknown" if partial else "ok"), f"Errori applicativi nel campione: {total}, di cui {recent} nell'ultima ora."
+        severity, summary = ("unknown" if partial else "ok"), f"Eventi applicativi osservati nelle ultime 24 ore: {total}; ultima ora: {recent}."
     return {"severity": severity, "summary": summary, "probable_cause": "Indeterminata senza correlazione con flussi e stack Magento.", "confidence": "low",
-            "evidence": [f"Occorrenze osservate: {total}", f"Ultimi 60 min: {recent}", f"Picco errore/min: {peak}"],
+            "evidence": [f"Ultime 24 ore (campione): {total}", f"Ultimi 60 min: {recent}", f"Picco errore/min: {peak}"],
             "recommendations": ["Aprire le tipologie di errore più frequenti e verificare moduli e stack interessati."], "limitations": limitations}
 
 
