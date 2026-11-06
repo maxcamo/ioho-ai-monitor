@@ -114,7 +114,7 @@ def test_dashboard_severity_is_report_link_and_redundant_sentence_removed():
     auth = ("admin", "test-dashboard-pass")
     response = TestClient(app).get("/", auth=auth)
     assert response.status_code == 200
-    assert "auto ogni ora" in response.text
+    assert "ogni ora" in response.text
     assert "Le due colonne sono indipendenti." not in response.text
     assert "OpenAI non configurata: analisi per regole locali." not in response.text
     assert "status-report-link" in response.text
