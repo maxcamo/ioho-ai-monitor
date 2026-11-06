@@ -5,6 +5,17 @@ in X-Forwarded-For e puo' essere falsificato se il proxy non lo valida.
 """
 from collections import Counter, defaultdict
 from datetime import timedelta
+from ipaddress import ip_address, ip_network
+
+
+def network_for_ip(client):
+    """Raggruppamento convenzionale /24 IPv4 e /64 IPv6, non appartenenza al medesimo soggetto."""
+    try:
+        addr = ip_address(client)
+        prefix = 24 if addr.version == 4 else 64
+        return str(ip_network(f"{addr}/{prefix}", strict=False))
+    except (ValueError, TypeError):
+        return None
 
 
 class TrafficWindow:
@@ -28,6 +39,9 @@ class TrafficWindow:
         self.client_filters = Counter()
         self.client_blocks = Counter()
         self.client_bots = Counter()
+        self.networks = Counter()
+        self.network_filters = Counter()
+        self.network_blocks = Counter()
         self.minute_counts = Counter()
         self.client_minutes = Counter()
         self.earliest = None
@@ -54,12 +68,17 @@ class TrafficWindow:
         minute = stamp.strftime('%Y-%m-%d %H:%M UTC')
         self.minute_counts[minute] += 1
         self._count(self.clients, client, self.MAX_KEYS)
+        network = network_for_ip(client)
+        if network:
+            self._count(self.networks, network, self.MAX_KEYS)
         self._count(self.urls, url, self.MAX_KEYS)
         self._count(self.pairs, (client, url), self.MAX_PAIRS)
         self._count(self.client_minutes, (client, minute), self.MAX_PAIRS)
         if status in ('403', '410', '429', '444'):
             self.blocked += 1
             self._count(self.client_blocks, client, self.MAX_KEYS)
+            if network:
+                self._count(self.network_blocks, network, self.MAX_KEYS)
             self._count(self.blocked_urls, url, self.MAX_KEYS)
         if status.startswith('5'):
             self.http_5xx += 1
@@ -69,6 +88,8 @@ class TrafficWindow:
         if is_filtered:
             self.filter_hits += 1
             self._count(self.client_filters, client, self.MAX_KEYS)
+            if network:
+                self._count(self.network_filters, network, self.MAX_KEYS)
             self._count(self.filtered_urls, url, self.MAX_KEYS)
 
     def snapshot(self, truncated):
@@ -101,6 +122,20 @@ class TrafficWindow:
                 'top_urls': [[url, hits] for url, hits in client_paths[client].most_common(3)],
                 'indicators': clues,
             })
+        # Quota rete calcolata su TUTTI gli IP validi letti, non solo sui top 15.
+        # IP distinti per rete derivati dalle chiavi client (censimento limitato a MAX_KEYS).
+        network_ip_counts = Counter()
+        for client in self.clients:
+            network = network_for_ip(client)
+            if network:
+                network_ip_counts[network] += 1
+        top_networks = [
+            {'network': network, 'count': n,
+             'unique_ips_observed': network_ip_counts[network],
+             'filtered': self.network_filters[network],
+             'blocked': self.network_blocks[network]}
+            for network, n in self.networks.most_common(20)
+        ]
         top_urls = [
             {'url': url, 'count': n, 'filtered': self.filtered_urls[url],
              'blocked': self.blocked_urls[url]}
@@ -120,6 +155,8 @@ class TrafficWindow:
             'top_urls': top_urls,
             'top_filtered_urls': [[url, n] for url, n in self.filtered_urls.most_common(12)],
             'top_clients': top_clients,
+            'top_networks': top_networks,
+            'network_counts_limited': self.capped,
             'top_ip_urls': [
                 {'ip': client, 'url': url, 'count': n}
                 for (client, url), n in self.pairs.most_common(15)
