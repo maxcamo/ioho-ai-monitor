@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Panoramica · IOHO AI Monitor{% endblock %}
+{% block refresh_seconds %}30{% endblock %}
 {% block content %}
 <div class="split"><div><div class="eyebrow">Infrastructure operations</div><h1>Panoramica server</h1><div class="sub">Diagnosi separate per errori Magento e traffico HTTP · {{ now.strftime('%d/%m/%Y %H:%M') }} UTC</div></div><span class="pill unknown">{{ servers|length }} server registrati</span></div>
 <div class="domain-overview">
@@ -16,23 +17,14 @@
   {% endfor %}
 </div>
 <section class="panel">
-  <div class="split"><div><h2>Stato per tipologia</h2></div></div>
-  <div class="status-table-wrap"><table class="table domain-table"><thead><tr><th>Server / collector</th><th>Problemi applicativi <span class="sub">(24h · auto ogni ora)</span></th><th>Traffico e crawler <span class="sub">(10m · auto ogni ora)</span></th></tr></thead><tbody>
+  <div class="split"><div><h2>Stato per tipologia</h2></div><span class="home-refresh"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.8-4M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.8 4M20 20v-4h-4"/></svg> Pagina aggiornata ogni 30 s · valori CPU dall’ultimo campione Zabbix</span></div>
+  <div class="status-table-wrap"><table class="table domain-table"><thead><tr><th>Server / collector</th><th>Problemi applicativi <span class="sub">(24h)</span></th><th>Traffico e crawler <span class="sub">(10m)</span></th><th>CPU</th><th>Load 1m</th><th>Load 5m</th><th>Load 15m</th><th>Processi</th></tr></thead><tbody>
   {% for s in servers %}
-  <tr>
+  {% set live = s.zabbix_live %}
+  <tr class="dashboard-host-row{% if live and live.level == 'warning' %} cpu-row-warning{% elif live and live.level == 'critical' %} cpu-row-critical{% endif %}">
     <td class="server-id">
       <a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a>
       <div class="server-health">{% if s.stale %}<span class="error">Collector offline / heartbeat assente</span>{% else %}<span class="ok">Collector online</span>{% endif %}</div>
-      {% set cpu = s.access.cpu %}
-      <div class="server-cpu{% if cpu and cpu.stale %} cpu-stale{% endif %}">
-        {% if cpu %}
-          <span class="server-cpu-label">CPU Zabbix</span>
-          <strong>{{ '%.1f'|format(cpu.last_pct)|replace('.', ',') }}%</strong>
-          <span class="server-cpu-extra">picco {{ '%.1f'|format(cpu.peak_pct)|replace('.', ',') }}% · report {{ cpu.timestamp.strftime('%d/%m %H:%M UTC') }}{% if cpu.stale %} · storico{% endif %}</span>
-        {% else %}
-          <span class="server-cpu-label">CPU Zabbix</span><span class="server-cpu-extra">— nessun dato nell'ultimo report accessi</span>
-        {% endif %}
-      </div>
     </td>
     {% for scope, label in [('app', 'Analizza applicativi 24h'), ('access', 'Analizza accessi 10m')] %}
     {% set check = s[scope] %}
@@ -52,8 +44,23 @@
       <div class="domain-updated">{{ check.timestamp.strftime('%d/%m %H:%M UTC') if check.timestamp else '—' }}</div>
     </td>
     {% endfor %}
+    <td class="live-cpu-cell">
+      {% if live and live.cpu_pct is not none %}
+      <div class="live-cpu-row" title="CPU rilevata da Zabbix alle {{ live.cpu_at }}">
+        <span class="cpu-segments" role="meter" aria-label="Utilizzo CPU" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ live.cpu_pct }}">
+          {% for segment in range(1, 21) %}<i class="cpu-segment{% if live.cpu_pct > (segment - 1) * 5 %} cpu-on{% endif %}{% if segment <= 12 %} cpu-green{% elif segment <= 17 %} cpu-yellow{% else %} cpu-red{% endif %}"></i>{% endfor %}
+        </span>
+        <strong class="live-cpu-value">{{ '%.1f'|format(live.cpu_pct)|replace('.', ',') }}%</strong>
+      </div>
+      <div class="live-cpu-time">{{ live.cpu_at }}</div>
+      {% else %}<span class="sub" title="Nessun campione CPU Zabbix recente (max 5 minuti)">—</span>{% endif %}
+    </td>
+    <td class="live-metric">{{ '%.2f'|format(live.load1) if live and live.load1 is not none else '—' }}</td>
+    <td class="live-metric">{{ '%.2f'|format(live.load5) if live and live.load5 is not none else '—' }}</td>
+    <td class="live-metric">{{ '%.2f'|format(live.load15) if live and live.load15 is not none else '—' }}</td>
+    <td class="live-metric">{{ live.processes if live and live.processes is not none else '—' }}</td>
   </tr>
-  {% else %}<tr><td colspan="3">Nessun server registrato.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="8">Nessun server registrato.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 <section class="panel"><h2>Attività recente</h2>
