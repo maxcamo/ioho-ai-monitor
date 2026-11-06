@@ -2,7 +2,7 @@
 {% block title %}Incidente #{{ job.id }} · IOHO AI Monitor{% endblock %}
 {% block content %}
 <div class="breadcrumb"><a href="/">Panoramica</a> / <a href="/server/{{ server.id }}">{{ server.name }}</a> / Analisi #{{ job.id }}</div>
-<div class="split"><div><div class="eyebrow">{{ 'Trigger Zabbix' if job.kind == 'incident' else 'Analisi traffico manuale' if job.kind == 'traffic_check' else 'Controllo notturno / manuale' }} · {{ job.created_at.strftime('%d/%m/%Y %H:%M UTC') }}</div><h1>{{ job.incident_name or 'Analisi tecnica' }}</h1><div class="sub">{{ server.name }} · job {{ job.state }}</div></div><span class="pill {{ analysis.severity if analysis else 'unknown' }}">{{ analysis.severity if analysis else 'IN ELABORAZIONE' }}</span></div>
+<div class="split"><div><div class="eyebrow">{{ 'Trigger Zabbix' if job.kind == 'incident' else 'Analisi accessi su richiesta' if job.kind == 'access_check' else 'Analisi applicativa su richiesta' if job.kind == 'app_check' else 'Analisi traffico manuale' if job.kind == 'traffic_check' else 'Controllo notturno / manuale' }} · {{ job.created_at.strftime('%d/%m/%Y %H:%M UTC') }}</div><h1>{{ job.incident_name or 'Analisi tecnica' }}</h1><div class="sub">{{ server.name }} · job {{ job.state }}</div></div><span class="pill {{ analysis.severity if analysis else 'unknown' }}">{{ analysis.severity if analysis else 'IN ELABORAZIONE' }}</span></div>
 {% if analysis %}
 <section class="panel"><div class="eyebrow">Diagnosi {{ 'OpenAI' if analysis.ai_used else 'basata su regole (AI non utilizzata)' }}</div><h2 style="margin-top:8px">{{ diagnosis.summary }}</h2><p><strong>Possibile causa:</strong> {{ diagnosis.probable_cause }}</p><p><strong>Confidenza AI:</strong> {{ diagnosis.confidence }}</p>
 <div class="grid"><div class="inner"><h3>Evidenze</h3><ul>{% for x in diagnosis.evidence %}<li>{{ x }}</li>{% else %}<li>Non disponibili</li>{% endfor %}</ul></div><div class="inner"><h3>Azioni consigliate</h3><ol>{% for x in diagnosis.recommendations %}<li>{{ x }}</li>{% else %}<li>Verificare direttamente il server</li>{% endfor %}</ol></div></div>
@@ -12,12 +12,12 @@
 {% else %}<section class="panel"><p>Raccolta o analisi in corso. La pagina si aggiorna automaticamente.</p></section>{% endif %}
 {% if data %}
 
-{% if job.kind in ['incident', 'traffic_check'] and data.traffic %}
+{% if job.kind in ['incident', 'traffic_check', 'access_check'] and data.traffic %}
 <section class="panel">
   <div class="split"><div><div class="eyebrow">Diagnosi rapida access.log</div>
     <h2 style="margin:5px 0">Chi sta chiamando Magento?</h2>
     <p class="sub">Fotografia degli ultimi 5 e 10 minuti alla raccolta {{ data.traffic.captured_at }} (UTC). I conteggi si riferiscono alle sole righe lette.</p></div>
-    <span class="pill warning">Incidente CPU</span>
+    <span class="pill unknown">{{ 'Incidente CPU' if job.kind == 'incident' else 'Analisi manuale' }}</span>
   </div>
   {% if data.coverage.access_truncated %}
   <p class="sub warning"><strong>Access log campionato:</strong> la parte finale dei log letti potrebbe non coprire tutti i 5/10 minuti. Non interpretare i conteggi come totali certi.</p>
@@ -71,15 +71,18 @@
   {% endfor %}
   <p class="sub">Un picco o uno User-Agent bot non prova un attacco. Gli IP X-Forwarded-For possono essere falsificati se il proxy non li valida. Molti 403/410 possono essere richieste respinte prima di Magento: correlare sempre con CPU e processi.</p>
 </section>
-{% elif job.kind in ['incident', 'traffic_check'] %}
+{% elif job.kind in ['incident', 'traffic_check', 'access_check'] %}
 <section class="panel"><h2>Diagnosi traffico ultimi 5/10 minuti</h2>
   <p class="sub">Questo incidente è stato acquisito con un collector precedente: aggiornare l'agente e creare un nuovo evento di test per vedere IP × URL e andamento per minuto.</p>
 </section>
 {% endif %}
+{% if job.kind != 'app_check' %}
 <section class="panel"><h2>Indicatori osservati</h2><div class="grid"><div class="inner"><div class="eyebrow">Richieste Nginx esaminate</div><div class="number">{{ data.access.total if data.access else '—' }}</div><div class="sub">Finestra: {{ data.window_minutes }} minuti</div></div><div class="inner"><div class="eyebrow">Richieste su URL filtrate</div><div class="number">{{ data.access.filtered_requests if data.access else '—' }}</div><div class="sub">UA bot noti: {{ data.access.known_bot_user_agent_hits if data.access else '—' }}</div></div></div>
 {% if data.coverage %}<p class="sub">Copertura: {{ data.coverage.matched }} file analizzati; {% if data.coverage.truncated %}<strong class="warning">lettura parziale</strong>{% else %}nessun troncamento rilevato{% endif %}; access log {% if data.coverage.no_access_log %}<strong class="error">non disponibile</strong>{% else %}presente{% endif %}.</p>{% endif %}
 <div class="grid"><div class="inner"><h3>HTTP status</h3><table class="table" style="min-width:0">{% for code,n in data.access.statuses.items() if data.access %}<tr><td>{{ code }}</td><td>{{ n }}</td></tr>{% endfor %}</table></div><div class="inner"><h3>Processi CPU (istantanea ps)</h3><table class="table" style="min-width:0"><thead><tr><th>Processo</th><th>%CPU*</th></tr></thead>{% for p in data.processes %}<tr><td class="mono">{{ p.command }}</td><td>{{ p.cpu_percent }}</td></tr>{% endfor %}</table><div class="sub">*%CPU ps è una media, non il valore istantaneo Zabbix.</div></div></div></section>
 <section class="panel"><h2>Traffico: URL e IP principali</h2><div class="grid"><div class="inner"><h3>URL normalizzate (query senza valori)</h3><ol>{% for pair in data.access.top_paths if data.access %}<li class="mono">{{ pair[0] }} <strong>({{ pair[1] }})</strong></li>{% endfor %}</ol></div><div class="inner"><h3>IP sorgente (visibili solo in console autenticata)</h3><ol>{% for pair in data.access.top_clients if data.access %}<li class="mono">{{ pair[0] }} <strong>({{ pair[1] }})</strong></li>{% endfor %}</ol></div></div></section>
+{% endif %}
+{% if job.kind != 'access_check' %}
 <section class="panel">
   <div class="split"><div><h2 style="margin:0">Errori applicativi per frequenza</h2>
   <p class="sub" style="margin-top:6px">Una riga per problema, ordinata dal più frequente. Apri il dettaglio per vedere gli esempi e gli orari.</p></div>
@@ -117,5 +120,6 @@
   {% endif %}
   <p class="sub">Le finestre di 15 e 60 minuti sono calcolate rispetto all'istante di raccolta, non all'apertura di questa pagina. Un evento raro non ha automaticamente priorità alta.</p>
 </section>
+{% endif %}
 {% endif %}
 {% endblock %}
