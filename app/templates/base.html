@@ -52,6 +52,17 @@
 .domain-cell .domain-updated{color:var(--dim);font-size:.71rem;line-height:1.35;margin-top:5px;font-variant-numeric:tabular-nums}
 .domain-cell .domain-action{margin-top:9px}
 
+/* v0.11: icona di riesecuzione a fianco dello stato */
+.domain-cell .domain-result{gap:7px;margin-bottom:3px;align-items:center}
+.domain-icon-form{display:inline-flex;margin:0;padding:0;flex:none}
+.domain-recheck{display:inline-flex;align-items:center;justify-content:center;width:29px;height:29px;padding:0;color:var(--blue);background:transparent;border:1px solid #3a5679;border-radius:8px;cursor:pointer;vertical-align:middle}
+.domain-recheck:hover{background:#213955;border-color:var(--blue)}
+.domain-recheck:active{background:#305071}
+.domain-recheck:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.domain-recheck svg{display:block;width:16px;height:16px}
+.domain-cell .domain-updated{margin-top:4px}
+.domain-table .server-health{margin-top:5px}
+
 .domain-cell .domain-action button{max-width:100%;white-space:normal;text-align:center}
 .status-table-wrap{overflow-x:auto}
 @media(max-width:800px){.domain-overview{grid-template-columns:1fr}.domain-table{min-width:730px}}
