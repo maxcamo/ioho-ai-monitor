@@ -13,7 +13,7 @@ UNIT="/etc/systemd/system/ioho-ai-agent.service"
 id "$USR" >/dev/null 2>&1 || { echo "Utente inesistente"; exit 1; }
 [[ ! -e "$CFG" && ! -e "$UNIT" ]] || { echo "Collector gia' configurato: non sovrascrivo"; exit 1; }
 GRP="$(id -gn "$USR")"
-python3 -m py_compile "$ROOT/agent/collector.py"
+python3 -m py_compile "$ROOT/agent/collector.py" "$ROOT/agent/traffic_analysis.py"
 for f in "$BASE/logs/access.log.1" "$BASE/htdocs/var/log/system.log" "$BASE/htdocs/var/log/exception.log"; do
   if [[ -s "$f" ]]; then
     runuser -u "$USR" -- test -r "$f" || { echo "Accesso negato a $USR: $f"; exit 1; }
@@ -60,6 +60,7 @@ PY
 unset IOHO_AGENT_TOKEN
 install -d -m 755 /opt/ioho-agent
 install -o root -g root -m 644 "$ROOT/agent/collector.py" /opt/ioho-agent/collector.py
+install -o root -g root -m 644 "$ROOT/agent/traffic_analysis.py" /opt/ioho-agent/traffic_analysis.py
 install -o root -g root -m 644 "$ROOT/agent/traffic_analysis.py" /opt/ioho-agent/traffic_analysis.py
 install -o root -g "$GRP" -m 640 "$TMP/config.json" "$CFG"
 install -o root -g root -m 644 "$TMP/console.crt" "$CRT"
