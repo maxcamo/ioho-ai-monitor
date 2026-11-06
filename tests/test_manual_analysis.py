@@ -71,9 +71,9 @@ def test_collector_reads_only_requested_log_type(tmp_path):
     moment = datetime.now(timezone.utc)
     timestamp = moment.astimezone().strftime("%d/%b/%Y:%H:%M:%S %z")
     access = tmp_path / "access.log"
-    access.write_text(f'192.0.2.1 - - [{timestamp}] "GET /shopby?cat=5 HTTP/1.1" 200 20 "-" "crawler"\\n')
+    access.write_text(f'192.0.2.1 - - [{timestamp}] "GET /shopby?cat=5 HTTP/1.1" 200 20 "-" "crawler"\n')
     app_log = tmp_path / "system.log"
-    app_log.write_text(f'[{moment.isoformat()}] main.ERROR: Magento test exception [] []\\n')
+    app_log.write_text(f'[{moment.isoformat()}] main.ERROR: Magento test exception [] []\n')
     config = {"access_logs": [str(access)], "app_logs": [str(app_log)],
               "nginx_error_logs": [], "server_timezone": "Europe/Rome"}
     http = collect(config, 10, ["access"])
