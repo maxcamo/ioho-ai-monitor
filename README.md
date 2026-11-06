@@ -255,3 +255,62 @@ Nel report di access.log sono visualizzate anche le reti IPv4 **/24** e IPv6 **/
 Accanto a ogni IP pubblico e alle reti pubbliche appare un link IPinfo; il monitor non consulta automaticamente servizi di geolocalizzazione. La visita al sito terzo e' deliberata, con `target=_blank`, `rel=noopener noreferrer` e `referrerpolicy=no-referrer`. Indirizzi privati e non validi non sono linkati. L'attribuzione di una rete/ASN o la posizione geoIP non prova che il client sia un crawler legittimo; verificare reverse+forward DNS per bot dichiarati, proxy fidati, CPU e URL.
 
 Aggiornamento centrale: `bash deploy/update-central-v08.sh` dopo `git pull`; aggiornamento dei collector gia' configurati: `bash deploy/update-agent-v08.sh`, su ciascun server interessato. Le analisi 10m nuove mostreranno gli aggregati completi del campione; per i report precedenti nessuna ricostruzione artificiale dei dati mancanti.
+
+ 
+## v0.9 — Grafico CPU Zabbix, crawler ogni ora e badge cliccabili
+
+**Dashboard:** stato applicativo (24h) e traffico/crawler (10m) separati. Il badge
+`OK / WARNING / CRITICAL / DA AGGIORNARE` è cliccabile e apre il relativo
+rapporto; il testo diagnostico non è più un link. Eliminato il paragrafo
+ridondante sopra la tabella.
+
+**Audit automatici:** il worker crea ogni ora, fra il minuto 02 e il minuto 10
+(ora `TZ`, predefinita Europe/Rome), un `access_check` per ogni server abilitato
+e senza audit accessi già attivo/recentissimo. Il controllo legge soltanto
+`access.log` degli ultimi 10 minuti con le protezioni e i limiti del collector.
+Il database `daily_markers` impedisce duplicati dopo il riavvio del worker.
+Gli esiti restano validi fino a 75 minuti (non 20); il report indica l'orario
+della fotografia, non descrive un monitoraggio in streaming.
+`HOURLY_ACCESS_ENABLED=false` in `.env` disabilita le analisi automatiche.
+Nessun carico artificiale sul sito; si applica ai server già registrati.
+
+**CPU Zabbix (opzionale, API in sola lettura):** su `ai-control` modificare
+`/opt/ioho-ai-monitor/.env` aggiungendo:
+
+```ini
+ZABBIX_API_URL=https://ZABBIX_FQDN/zabbix/api_jsonrpc.php
+ZABBIX_API_TOKEN=TOKEN_DEDICATO_SOLO_LETTURA
+# ZABBIX_CPU_ITEM_KEY=system.cpu.util
+HOURLY_ACCESS_ENABLED=true
+```
+
+L'URL deve usare HTTPS con certificato attendibile per il container. Il token
+NON è `ZABBIX_WEBHOOK_TOKEN`, ma un API token Zabbix dedicato, con permessi
+limitati agli host e ai metodi `host.get`, `item.get` e `history.get`.
+Dopo aver modificato `.env`, riavviare il worker con
+`docker compose up -d --no-deps --force-recreate worker`. Non stampare
+il token nei log o nelle chat.
+
+Il worker usa il nome host tecnico `Server.zabbix_host` per trovare l'host
+Zabbix, seleziona preferibilmente l'item dipendente `system.cpu.util`
+(CPU utilization) oppure `system.cpu.util[,idle]` (convertito in 100-idle).
+`ZABBIX_CPU_ITEM_KEY` è opzionale se il template differisce.
+**NON** utilizza l'item `system.cpu.util` grezzo come percentuale
+di utilizzo complessivo se non ha il nome `CPU utilization`: come key
+dell'agente può indicare solo la CPU `user`.
+
+Per ogni nuovo audit accessi/trigger CPU il worker interroga lo storico nei
+10 minuti precedenti l'istante **effettivo di raccolta** del collector,
+salva la sintesi `zabbix_cpu` nello stesso job e disegna CPU e richieste
+sincronizzate per minuto nella pagina incidente. Il report storico non
+cambia aprendo la pagina in seguito. Gli audit antecedenti alla v0.9 non
+hanno i campioni CPU; serve un nuovo controllo. Se Zabbix non è configurato,
+non risponde o non ha lo storico, l'analisi HTTP continua senza CPU.
+Le API Zabbix non sono mai chiamate dal browser; il token resta nel worker.
+
+**Deploy:** soltanto su `ai-control`:
+`git -C /tmp/ioho-ai-monitor pull --ff-only origin main`,
+`bash /tmp/ioho-ai-monitor/deploy/update-central-v09.sh`.
+Il deploy aggiorna API e worker mantenendo il database, i token e gli agenti
+invariati. Verificare l'API e testare i cinque host in sola lettura, senza
+provocare un picco CPU artificiale.
