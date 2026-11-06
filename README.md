@@ -1,0 +1,195 @@
+> **Nota GitHub:** questo repository contiene solo codice e template, mai token di collector, `.env`, certificati o log dei clienti. Dopo il clone conservare la configurazione runtime sul server e aggiornarla separatamente. Per Polti usare `deploy/polti/README.txt`, che genera localmente un bundle contenente un token privato: non caricare il bundle su GitHub.
+
+# IOHO AI Monitor — sorgenti consolidati v0.3 (pilota controllato)
+
+Console indipendente da Zabbix per ~40 server Linux/Magento. Due workflow:
+
+- **Trigger CPU Zabbix** → webhook → analisi del server mirato → incidente in console.
+- **Audit notturno alle 02:30** (Europe/Rome) → analisi log 24 h con budget di lettura → dashboard → un riepilogo email alle 06:30 (solo se SMTP configurato).
+
+> **Stato**: sorgenti consolidati dalla MVP e dalla patch 0.3; testare prima di distribuire a nuovi server. Non esegue azioni correttive. Non pretende di leggere integralmente log enormi: limita le letture e segnala espressamente l'incompletezza.
+
+## Struttura
+
+```
+app/       FastAPI + dashboard HTML + API webhooks/collector + analisi AI
+agent/     collector Python stdlib, sola lettura, connessioni HTTPS in uscita
+worker.py  job processor, scheduler, email, retention
+manage.py  provisioning server e audit manuale
+zabbix/    JavaScript per Media type Webhook Zabbix 7.x
+deploy/    bootstrap centrale, service systemd e proxy Nginx
+```
+
+## Prerequisiti e sicurezza
+
+- Console: server Linux con Docker Engine, `docker compose` plugin, Nginx con **HTTPS TLS valido**, DNS dedicato, firewall. La dashboard usa HTTP Basic: **non esporre mai in HTTP**. Aggiungere preferibilmente VPN, allowlist IP o un sistema SSO prima di esporla su Internet.
+- Collector: Python 3.10+ e Linux con `systemd`; utente dedicato non privilegiato, permessi di **sola lettura** su access.log, error.log e log Magento; traffico HTTPS **in uscita**. Nessuna apertura SSH dal pannello, nessuna esecuzione remota.
+- Zabbix: accesso admin per aggiungere un media type webhook e un'azione/operazione senza toccare la notifica email esistente.
+- API OpenAI: chiave API separata dall'abbonamento ChatGPT; addebito a consumo. Senza chiave la diagnosi è **rule-based**, esplicitamente segnalata, non AI.
+- Postgres solo su rete interna Docker. Porta API esposta esclusivamente su loopback `127.0.0.1:8088`, da mettere dietro TLS.
+- Conservazione analisi/job: 30 giorni di default. Backup database e custodia token a carico dell'operatore.
+
+## A — Installazione sul server della console
+
+Dal server dedicato (non necessariamente quello di Zabbix), copiare/scaricare questa cartella e:
+
+```bash
+clear
+cd /opt/ioho-ai-monitor
+bash deploy/bootstrap-central.sh
+```
+
+La prima esecuzione genera `.env` con password differenti per PostgreSQL, pannello e webhook. Poi:
+
+```bash
+clear
+cd /opt/ioho-ai-monitor
+nano .env
+# OPENAI_API_KEY=sk-...   (non condividere la chiave)
+# SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, REPORT_TO
+# Esempio REPORT_TO=ops@propriodominio.tld
+
+docker compose up -d --force-recreate
+
+docker compose ps
+docker compose logs --tail=80 api worker
+curl -fsS http://127.0.0.1:8088/health
+```
+
+**Nginx:** creare un server `https://monitor.<dominio-di-proprieta>` con certificato valido e utilizzare `deploy/nginx-example.conf` **all'interno del blocco `server` TLS** (non copiarlo come intero `nginx.conf`). Aprire 443 solo da reti autorizzate ove possibile. Testare TLS e autenticazione browser prima di installare agent remoti.
+
+La UI è `https://monitor.<dominio-di-proprieta>/`, autenticazione con `DASHBOARD_USER` e `DASHBOARD_PASSWORD` presenti in `.env`.
+
+## B — Registrazione del primo server Magento (esempio Polti)
+
+Il secondo parametro deve essere **Host name tecnico** in Zabbix, non il nome visibile. Prima verificarlo dalla UI di Zabbix:
+
+```bash
+clear
+cd /opt/ioho-ai-monitor
+docker compose exec api python manage.py add-server polti.it NOME_HOST_TECNICO_ZABBIX
+```
+
+L'output contiene un **agent_token** generato una sola volta. Copiarlo in un password manager. Quindi sul server Magento, copiare la cartella `agent/` e `deploy/install-agent.sh` e configurare:
+
+```bash
+clear
+sudo cp agent/config.example.json /etc/ioho-ai-agent.json
+sudo nano /etc/ioho-ai-agent.json
+# console_url: https://monitor.<dominio-proprio>
+# agent_token: token appena generato
+# access_logs e nginx_error_logs: percorsi reali, eventualmente rotated *.1 e *.gz
+# app_logs: glob Magento var/log/*.log* e moduli personalizzati
+
+sudo chmod 600 /etc/ioho-ai-agent.json
+python3 agent/collector.py /etc/ioho-ai-agent.json --once
+```
+
+L'ultimo comando fa un'ispezione locale *non inviata* alla console e mostra in JSON i file trovati, quanti eventi vengono letti e le limitazioni. Attenzione: se lo esegui come root legge log che l'utente del servizio potrebbe non poter leggere. Meglio provarlo anche come `ioho-monitor` dopo installazione.
+
+Concedere **solo** gli ACL strettamente necessari, per esempio (adattare percorsi):
+
+```bash
+clear
+sudo apt-get install -y acl
+sudo setfacl -m u:ioho-monitor:rx /var/www/www.example.com/logs
+sudo setfacl -m u:ioho-monitor:r /var/www/www.example.com/logs/access.log
+sudo setfacl -m u:ioho-monitor:r /var/www/www.example.com/logs/error.log
+# Per file ruotati e nuovi log applicativi impostare ACL sui file già presenti
+# e ACL default appropriate sulle directory; verificare prima la struttura reale.
+```
+
+Per Magento, concedere accesso in lettura a `htdocs/var/log` e ai file, più permesso di attraversamento sulle directory genitrici (`x`). Se i file vengono ricreati da logrotate o Magento, configurare ACL di default o gruppi appropriati; non rendere i log `chmod 777`. In caso di percorsi con contenuti sensibili limitare l'accesso ai soli log approvati.
+
+Avviare systemd:
+
+```bash
+clear
+sudo bash deploy/install-agent.sh
+sudo journalctl -u ioho-ai-agent -n 50 --no-pager
+```
+
+Il collector interroga `/api/agent/next` ogni 20 secondi, mantiene l'heartbeat e si attiva **solo se è in coda un job**, senza costose scansioni continue.
+
+## C — Zabbix: media type e action CPU (senza toccare le mail esistenti)
+
+1. **Alerts → Media types → Create media type**. Nome: `IOHO AI Monitor`. Tipo: **Webhook**.
+2. Copiare il JavaScript contenuto in `zabbix/ioho-ai-webhook.js` nel campo **Script**.
+3. Impostare questi parametri *esattamente*:
+
+| Parametro | Valore |
+| --- | --- |
+| `url` | `https://monitor.<dominio-proprio>/api/zabbix/event` |
+| `token` | valore `ZABBIX_WEBHOOK_TOKEN` di `.env` |
+| `event_id` | `{EVENT.ID}` |
+| `host` | `{HOST.HOST}` |
+| `name` | `{EVENT.NAME}` |
+| `status` | `{EVENT.VALUE}` |
+| `severity` | `{EVENT.SEVERITY}` |
+| `clock` | `{EVENT.DATE} {EVENT.TIME}` |
+
+4. Abilitare il media type. Creare o usare un utente tecnico Zabbix dedicato, aggiungendo il **media IOHO AI Monitor**. Se Zabbix richiede **Send to**, inserire `ioho-monitor` (il parametro non è utilizzato dal nostro script).
+5. **Alerts → Actions → Trigger actions**: nuova azione `IOHO - CPU alto -> AI`. Filtrare sui trigger CPU già esistenti (trigger name/tag coerenti con i vostri template); nell'operazione di invio selezionare l'utente tecnico e **solo** il media type `IOHO AI Monitor`. Lasciare le azioni email preesistenti invariate. Definire un solo invio iniziale, non ripetizioni ad ogni step.
+6. Testare con la funzione **Test** del media type, compilando un event ID di prova, host registrato e `status=1`, oppure con l'evento reale. Controllare che il job compaia nel pannello. Non provocare artificialmente saturazione CPU in produzione.
+
+Il codice lato server deduplica lo stesso `event_id` e limita a un'analisi incidente ogni 15 minuti per server. Una risposta HTTP 404 all'evento indica che l'host Zabbix non corrisponde a quello registrato in console.
+
+**Nota:** per ora si inoltrano solo gli eventi **PROBLEM**. La chiusura automatica alla recovery Zabbix è uno sviluppo successivo: in questa versione la gravità rappresenta **l'ultima diagnosi**, non necessariamente lo stato corrente del trigger.
+
+## D — Test incidente e controllo manuale
+
+Dopo la registrazione, puoi accodare un audit a richiesta senza produrre stress CPU:
+
+```bash
+clear
+cd /opt/ioho-ai-monitor
+docker compose exec api python manage.py run-audit polti.it
+docker compose logs -f --tail=50 worker
+```
+
+Oppure simulare un **evento Zabbix** dalla funzione Test del media type, verificando che arrivi, venga acquisito dal collector e compaia `done` con diagnosi nella console. I tre passaggi che ci aspettiamo sono:
+
+1. **queued** (arrivato da Zabbix) → **leased** (assegnato al collector) → **collected** (evidenze ricevute)
+2. **processing** (analisi AI) → **done** (diagnosi in console)
+3. **critical / warning / ok / unknown**; `unknown` indica evidenze non affidabili, non server sano.
+
+## E — Notturno
+
+- Alle **02:30 Europe/Rome**, il worker genera un job `nightly` per ciascun server attivo (quando il servizio è online nella finestra 02:30–04:59).
+- Il collector esamina l'ultima finestra di **1.440 minuti**. Limiti per sicurezza: fino a 12 MB per file, 90 MB complessivi per server e 40 file per categoria (modificabili in config); include `*.1` e `*.gz` dove presenti, ma una rotazione molto voluminosa può essere **campionata**, non letta integralmente.
+- Alle **06:30 Europe/Rome**, se SMTP è configurato, un'email raggruppa gli stati dei server. I non analizzati vengono segnalati, mai marcati come OK.
+- L'analisi AI usa l'API OpenAI **solo per aggregati/metadata**: non trasmette IP sorgente né righe di log complete. La console autenticata conserva temporaneamente IP e piccoli esempi depurati per consentire l'investigazione.
+- La prima notte può risultare incompleta sui server con log grandi: la versione 0.2 potrà introdurre cursori incrementali di lettura per statistiche giornaliere complete, anomaly detection su baseline settimanale e stream di errori.
+
+## F — Operatività, backup e limiti della MVP
+
+- **Cosa non fa:** modificare firewall/Nginx, bloccare bot, riavviare servizi, eseguire shell da remoto, controllare promettendo diagnosi certa. Non monitora metriche CPU autonomamente: queste arrivano da Zabbix.
+- **Cosa fa:** analizza su richiesta del trigger Zabbix, mostra top URL normalizzate, IP più attivi, status HTTP, errori di app e Nginx, processi con consumo medio `ps`, limita invii duplicati, schedula audit e email.
+- **Privacy/GDPR:** IP e righe di log restano nel DB centrale protetto (retention 30 giorni), mentre l'API AI riceve soltanto statistiche e URL normalizzate. Anche le URL possono contenere identificativi: adattare la normalizzazione alle vostre applicazioni e definire policy di conservazione/informativa e trasferimento dati prima dell'uso su tutti i clienti.
+- **Limiti diagnostici:** `ps %CPU` è una media, non equivalente al valore Zabbix al momento del picco; log custom che non adottano timestamp riconosciuti non vengono conteggiati e richiedono parser dedicati. Per log enormi il campionamento potrebbe mancare il momento dell'evento. La durata di analisi dipende dalla coda e dai tempi API; non esiste SLA nella versione pilota.
+- **Scalabilità:** un worker sequenziale va bene per il pilota; con 40 server e analisi notturne contemporanee va dimensionata la concorrenza, i limiti API, I/O e retention. Nella fase successiva predisporre più worker con coda robusta e metriche di salute del monitor stesso.
+- **Email incidenti:** non invia ancora email ad ogni incidente, perché Zabbix continua a farlo; il pannello mostra la diagnosi e l'email giornaliera riepiloga la notte.
+- **Stato recuperato:** come sopra, manca ancora la sincronizzazione PROBLEM/RESOLVED.
+
+Backup logico DB (esempio; conservare i dump fuori dal server):
+
+```bash
+clear
+cd /opt/ioho-ai-monitor
+docker compose exec -T db pg_dump -U ioho -d ioho_monitor > "ioho_monitor_$(date +%F).sql"
+```
+
+Test locali su codice senza bisogno di server:
+
+```bash
+clear
+python3 -m pytest -q tests
+```
+
+## Note sviluppo (da integrare dopo il pilota)
+
+- Parser personalizzati per access log JSON, errori Magento multilinea e rotazioni con file giganti.
+- Baseline traffico 7/30 giorni e stato evento legato alla recovery Zabbix.
+- Grafici storico per server, riconoscimento ricorrenze, snapshot processi più frequenti.
+- Accesso console con utenti e audit trail/SSO, confidenze calibrate su esempi reali.
+- Sistema d'avviso push in UI/email distinto dai trigger, limiti di costo AI per server/tenant.
