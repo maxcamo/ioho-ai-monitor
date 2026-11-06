@@ -111,7 +111,8 @@ async def agent_result(request: Request, server: Server = Depends(agent_auth)):
 # Accessi e applicativi mantengono due stati autonomi: uno storico misto
 # (nightly / Zabbix) non puo' rappresentare l'esito di uno dei due controlli.
 DOMAIN_KINDS = {"access": "access_check", "app": "app_check"}
-DOMAIN_FRESHNESS = {"access": timedelta(minutes=75), "app": timedelta(hours=30)}
+# Controlli orari: 75m accessi, 90m applicativi (margine per la coda).
+DOMAIN_FRESHNESS = {"access": timedelta(minutes=75), "app": timedelta(minutes=90)}
 ACTIVE_STATES = ("queued", "leased", "collected", "processing")
 
 
