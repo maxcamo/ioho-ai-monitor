@@ -314,3 +314,61 @@ Le API Zabbix non sono mai chiamate dal browser; il token resta nel worker.
 Il deploy aggiorna API e worker mantenendo il database, i token e gli agenti
 invariati. Verificare l'API e testare i cinque host in sola lettura, senza
 provocare un picco CPU artificiale.
+
+
+## v0.10 — Home compatta e controlli automatici ogni ora su entrambe le colonne
+
+**Panoramica:** nella tabella "Stato per tipologia" ciascuna cella mostra
+solo il badge di stato cliccabile (apre il report), l'ultimo aggiornamento
+con carattere piccolo e il pulsante di analisi manuale. Le frasi lunghe
+con il riassunto diagnostico non appaiono più nella home; rimangono nel
+report di dettaglio e nella tabella "Attività recente".
+
+**Scheduler ogni ora, per ciascun server abilitato:**
+- `access_check`: ultimi **10 minuti** del solo log accessi;
+- `app_check`: ultimi **1.440 minuti (24 ore)** dei log applicativi.
+
+I due scheduler sono indipendenti, vengono controllati dal worker fra
+il minuto 02 e il minuto 10 di ogni ora locale (`TZ`, di default
+`Europe/Rome`), e saltano un controllo quando esiste già un job della
+stessa tipologia in corso oppure completato negli ultimi 10 minuti.
+Usano marcatori DB distinti per ora e tipologia, evitando il reinvio al
+riavvio. Non fanno recupero dei giri saltati durante un downtime.
+Non leggono senza limiti: restano validi budget, campionamento e
+`CPUQuota/MemoryMax` degli agenti. Se la coda è lenta, le verifiche
+possono completarsi dopo l'inizio dell'ora.
+
+I badge passano a `DA AGGIORNARE` dopo **75 minuti** per gli accessi e
+dopo **90 minuti** per gli applicativi. Una fotografia non è monitoraggio
+in tempo reale; data e ora visibili indicano l'ultimo completamento.
+
+La configurazione `.env` sul server centrale supporta:
+
+```ini
+HOURLY_ACCESS_ENABLED=true
+HOURLY_APP_ENABLED=true
+```
+
+Entrambe le impostazioni sono `true` per default anche se mancanti
+dal file `.env`. Per disabilitare i controlli applicativi impostare
+`HOURLY_APP_ENABLED=false` e ricreare il solo worker.
+
+**Deploy centrale (ai-control, root):**
+
+```bash
+clear
+git -C /tmp/ioho-ai-monitor pull --ff-only origin main
+test "$(cat /tmp/ioho-ai-monitor/VERSION)" = "0.10"
+bash /tmp/ioho-ai-monitor/deploy/update-central-v010.sh
+```
+
+Il deploy fa backup dei file aggiornati, ricostruisce `api` e `worker`,
+verifica il loro avvio e non modifica il DB, i secret, la rete o gli agenti
+Magento. I nuovi job automatici appariranno alla prossima finestra oraria
+(minuti 02-10). La raccolta può essere eseguita anche manualmente dal
+pulsante, senza produrre traffico di test sul sito.
+
+**Verifica:** `docker compose logs --tail=50 worker` per leggere le
+righe `[scheduler] access` e `[scheduler] app`, e la sezione
+"Attività recente" nella dashboard. I cinque server esistenti
+continuano a essere gestiti dalle registrazioni già presenti nel DB.
