@@ -50,7 +50,7 @@
         <span class="cpu-segments" role="meter" aria-label="Utilizzo CPU" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ live.cpu_pct }}">
           {% for segment in range(1, 21) %}<i class="cpu-segment{% if live.cpu_pct > (segment - 1) * 5 %} cpu-on{% endif %}{% if segment <= 12 %} cpu-green{% elif segment <= 17 %} cpu-yellow{% else %} cpu-red{% endif %}"></i>{% endfor %}
         </span>
-        <strong class="live-cpu-value">{{ '%.1f'|format(live.cpu_pct)|replace('.', ',') }}%</strong>
+        <strong class="live-cpu-value">{{ '%.2f'|format(live.cpu_pct)|replace('.', ',') }}%</strong>
       </div>
       <div class="live-cpu-time">{{ live.cpu_at }}</div>
       {% else %}<span class="sub" title="Nessun campione CPU Zabbix recente (max 5 minuti)">—</span>{% endif %}
