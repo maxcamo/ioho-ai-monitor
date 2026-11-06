@@ -9,7 +9,7 @@ I pulsanti sono protetti da HTTP Basic e verifica same-origin, usano POST, accod
 
 Aggiornamento su ai-control: `bash deploy/update-central-v05.sh` dal clone GitHub. Aggiornamento sui collector gia installati: `bash deploy/update-agent-v05.sh`; aggiornare prima la console e poi gli agenti.
 
-**Per abilitare l'AI:** configurare `OPENAI_API_KEY` nell'`.env` della console centrale e ricreare solo il worker con Docker Compose. Senza chiave i pulsanti generano report con diagnosi per regole e la dashboard lo dichiara esplicitamente. Non mettere la chiave su GitHub o sui server Magento.
+**Per abilitare l'AI:** configurare `OPENAI_API_KEY` nell'`.env` della console centrale e ricreare solo `api` e `worker` con Docker Compose, per aggiornare sia la diagnosi sia l'indicatore AI nell'interfaccia. Senza chiave i pulsanti generano report con diagnosi per regole e la dashboard lo dichiara esplicitamente. Non mettere la chiave su GitHub o sui server Magento.
 
 ---
 
