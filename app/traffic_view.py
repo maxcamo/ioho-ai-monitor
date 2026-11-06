@@ -1,4 +1,5 @@
-"""View model del rapporto HTTP; solo aggregazioni già raccolte, senza rilettura log."""
+"""View model del rapporto HTTP; aggregati locali, senza richieste esterne."""
+from ipaddress import ip_address, ip_network
 
 
 def _number(value):
@@ -10,6 +11,34 @@ def _number(value):
 
 def _percent(part, total):
     return round(100 * part / total, 1) if total else 0.0
+
+
+def _network_from_client(value):
+    try:
+        ip = ip_address(str(value))
+        return str(ip_network(f"{ip}/{24 if ip.version == 4 else 64}", strict=False))
+    except (ValueError, TypeError):
+        return None
+
+
+def _ipinfo_ip(value):
+    """Non creare link verso siti esterni per IP locali, non validi o non pubblici."""
+    try:
+        ip = ip_address(str(value))
+        return f"https://ipinfo.io/{ip.compressed}" if ip.is_global else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _ipinfo_network(value):
+    try:
+        network = ip_network(str(value), strict=False)
+        prefix = 24 if network.version == 4 else 64
+        if network.prefixlen != prefix:
+            return None
+        return f"https://ipinfo.io/ips/{network}" if network.is_global else None
+    except (ValueError, TypeError):
+        return None
 
 
 def make_traffic_report(payload):
@@ -33,9 +62,56 @@ def make_traffic_report(payload):
         for ip in (w.get("top_clients") or [])[:15]:
             count = _number(ip.get("count"))
             clients.append({**ip, "count": count, "share": _percent(count,total),
+                            "network": _network_from_client(ip.get("ip")),
+                            "lookup_url": _ipinfo_ip(ip.get("ip")),
                             "blocked_percent": _percent(_number(ip.get("blocked")),count),
                             "filtered_percent": _percent(_number(ip.get("filtered")),count)})
         clients.sort(key=lambda x: -x["count"])
+        # Nuovi audit: rete aggregata sul traffico completo letto dall'agente.
+        # Audit storici: solo i 15 IP salvati, quindi somme MINIME e non globali.
+        network_rows = []
+        raw_networks = w.get("top_networks")
+        network_from_collector = isinstance(raw_networks, list)
+        if network_from_collector:
+            for net in raw_networks[:20]:
+                if not isinstance(net, dict):
+                    continue
+                cidr = net.get("network")
+                lookup_url = _ipinfo_network(cidr)
+                if not isinstance(cidr, str):
+                    continue
+                try:
+                    parsed = ip_network(cidr, strict=False)
+                except (ValueError, TypeError):
+                    continue
+                if parsed.prefixlen != (24 if parsed.version == 4 else 64):
+                    continue
+                count = _number(net.get("count"))
+                network_rows.append({
+                    "network": str(parsed), "count": count,
+                    "share": _percent(count, total),
+                    "unique_ips": _number(net.get("unique_ips_observed")),
+                    "filtered": _number(net.get("filtered")),
+                    "blocked": _number(net.get("blocked")),
+                    "lookup_url": lookup_url,
+                })
+        else:
+            grouped = {}
+            for client in clients:
+                cidr = client.get("network")
+                if not cidr:
+                    continue
+                info = grouped.setdefault(cidr, {"network": cidr, "count": 0,
+                    "unique_ips": 0, "filtered": 0, "blocked": 0,
+                    "lookup_url": _ipinfo_network(cidr)})
+                info["count"] += client["count"]
+                info["unique_ips"] += 1
+                info["filtered"] += _number(client.get("filtered"))
+                info["blocked"] += _number(client.get("blocked"))
+            network_rows = [{**item, "share": _percent(item["count"], total)}
+                            for item in grouped.values()]
+        network_rows.sort(key=lambda row: (-row["count"], row["network"]))
+        networks_limited = (not network_from_collector) or bool(w.get("network_counts_limited"))
         filtered_urls = []
         for item in (w.get("top_filtered_urls") or [])[:15]:
             if isinstance(item,(list,tuple)) and len(item)>=2:
@@ -65,6 +141,11 @@ def make_traffic_report(payload):
             row["width"] = max(2, round(100 * row["count"] / peak)) if row["count"] else 0
         top_client_count=clients[0]["count"] if clients else 0
         findings=[]
+        if network_rows and network_rows[0]["count"] >= 50 and network_rows[0]["share"] >= 25:
+            top_net = network_rows[0]
+            qualifier = "almeno " if not network_from_collector else ""
+            findings.append(f"La rete {top_net['network']} rappresenta {qualifier}{top_net['count']} richieste "
+                            f"({top_net['share']}% del campione): la rete condivisa NON implica un singolo bot.")
         if total == 0:
             findings.append("Nessuna richiesta riconosciuta nel campione di questa finestra: controllare log, rotazione e timestamp.")
         else:
@@ -87,6 +168,8 @@ def make_traffic_report(payload):
             "plain_pct":_percent(max(0,total-filters),total),"blocked":blocked,
             "blocked_pct":_percent(blocked,total),"errors":errors,"errors_pct":_percent(errors,total),
             "bot_ua":_number(w.get("bot_ua_hits")),"clients":clients,
+            "networks":network_rows[:20], "networks_limited": networks_limited,
+            "networks_from_collector": network_from_collector,
             "filtered_urls":filtered_urls,"plain_urls":plain_urls[:15],
             "plain_url_limited":True,"all_urls":all_urls,
             "top_ip_urls":(w.get("top_ip_urls") or [])[:15],
