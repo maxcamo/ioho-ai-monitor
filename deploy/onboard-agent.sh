@@ -53,7 +53,7 @@ out={
  'max_files':25,
  'access_logs':[b+'/logs/access.log',b+'/logs/access.log.1'],
  'nginx_error_logs':[b+'/logs/error.log',b+'/logs/error.log.1',b+'/logs/reverse_error.log',b+'/logs/reverse_error.log.1','/var/log/nginx/nginx.log'],
- 'app_logs':[b+'/htdocs/var/log/system.log',b+'/htdocs/var/log/exception.log',b+'/htdocs/var/log/*.log']
+ 'app_logs':[b+'/htdocs/var/log/system.log',b+'/htdocs/var/log/exception.log',b+'/htdocs/var/log/*.log',b+'/htdocs/var/log/wp/error.log']
 }
 with open(sys.argv[1],'w') as f: json.dump(out,f,indent=2)
 PY
