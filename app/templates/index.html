@@ -20,7 +20,20 @@
   <div class="status-table-wrap"><table class="table domain-table"><thead><tr><th>Server / collector</th><th>Problemi applicativi <span class="sub">(24h · auto ogni ora)</span></th><th>Traffico e crawler <span class="sub">(10m · auto ogni ora)</span></th></tr></thead><tbody>
   {% for s in servers %}
   <tr>
-    <td class="server-id"><a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a><div class="server-health">{% if s.stale %}<span class="error">Collector offline / heartbeat assente</span>{% else %}<span class="ok">Collector online</span>{% endif %}</div></td>
+    <td class="server-id">
+      <a href="/server/{{ s.id }}"><strong>{{ s.name }}</strong></a>
+      <div class="server-health">{% if s.stale %}<span class="error">Collector offline / heartbeat assente</span>{% else %}<span class="ok">Collector online</span>{% endif %}</div>
+      {% set cpu = s.access.cpu %}
+      <div class="server-cpu{% if cpu and cpu.stale %} cpu-stale{% endif %}">
+        {% if cpu %}
+          <span class="server-cpu-label">CPU Zabbix</span>
+          <strong>{{ '%.1f'|format(cpu.last_pct)|replace('.', ',') }}%</strong>
+          <span class="server-cpu-extra">picco {{ '%.1f'|format(cpu.peak_pct)|replace('.', ',') }}% · report {{ cpu.timestamp.strftime('%d/%m %H:%M UTC') }}{% if cpu.stale %} · storico{% endif %}</span>
+        {% else %}
+          <span class="server-cpu-label">CPU Zabbix</span><span class="server-cpu-extra">— nessun dato nell'ultimo report accessi</span>
+        {% endif %}
+      </div>
+    </td>
     {% for scope, label in [('app', 'Analizza applicativi 24h'), ('access', 'Analizza accessi 10m')] %}
     {% set check = s[scope] %}
     <td class="domain-cell">
