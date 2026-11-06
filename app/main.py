@@ -13,6 +13,7 @@ from app.db import Session, Server, Job, Analysis, init_db, utcnow
 from app.security import agent_auth, dashboard_auth, webhook_auth
 from app.log_groups import build_error_groups
 from app.traffic_view import make_traffic_report
+from app.zabbix_live import get_live_metrics
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -218,7 +219,14 @@ def dashboard(request: Request, _: str = Depends(dashboard_auth)):
         counters = {scope: {status: sum(1 for s in servers if s[scope]["status"] == status)
                             for status in ("ok", "warning", "critical", "unknown")}
                     for scope in ("app", "access")}
-        return views.TemplateResponse(request=request, name="index.html", context={"servers": servers, "jobs": jobs, "counters": counters, "now": utcnow(), "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
+    # La chiamata Zabbix e' fuori dalla sessione DB, in batch e con cache 25s.
+    # Il monitor resta disponibile se le API Zabbix non rispondono.
+    current = get_live_metrics([server["zabbix_host"] for server in servers])
+    for server in servers:
+        server["zabbix_live"] = current.get(server["zabbix_host"])
+    return views.TemplateResponse(request=request, name="index.html", context={
+        "servers": servers, "jobs": jobs, "counters": counters,
+        "now": utcnow(), "ai_ready": bool(os.getenv("OPENAI_API_KEY", "").strip())})
 
 
 @app.post("/server/{server_id}/analyze/{scope}")
