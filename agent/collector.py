@@ -177,13 +177,17 @@ def file_lines(path, max_bytes, coverage):
     return lines(), start > 0
 
 
-def collect(config, minutes):
+def collect(config, minutes, sections=None):
+    allowed_sections = {"access", "nginx_error", "app"}
+    selected_sections = allowed_sections if sections is None else (set(sections) & allowed_sections)
+    if not selected_sections:
+        raise ValueError("Nessuna sezione di log valida richiesta")
     zone = ZoneInfo(config.get("server_timezone", "Europe/Rome"))
     reference = dt.datetime.now(dt.timezone.utc)
     since = reference - dt.timedelta(minutes=minutes)
     per_file_bytes = min(int(config.get("max_bytes_per_file", 12_000_000)), 60_000_000)
     budget = min(int(config.get("max_total_bytes", 90_000_000)), 250_000_000)
-    traffic = TrafficSummary(reference) if minutes <= 20 else None
+    traffic = TrafficSummary(reference) if minutes <= 20 and "access" in selected_sections else None
     if traffic is not None:
         budget = max(budget, min(int(config.get("incident_total_bytes", 40_000_000)), 60_000_000))
     max_files = min(int(config.get("max_files", 40)), 80)
@@ -199,7 +203,7 @@ def collect(config, minutes):
     logs = {}
     group_state = {"groups": 0}
     coverage = {"matched": 0, "truncated": False, "no_access_log": False, "errors": [], "max_total_bytes": budget, "max_bytes_per_file": per_file_bytes}
-    types = (("access", config.get("access_logs", [])), ("nginx_error", config.get("nginx_error_logs", [])), ("app", config.get("app_logs", [])))
+    types = tuple((group, config.get(group + "_logs" if group != "app" else "app_logs", [])) for group in ("access", "nginx_error", "app") if group in selected_sections)
     used = set()
     spent = 0
     access_found = False
@@ -293,7 +297,7 @@ def collect(config, minutes):
         for group in groups:
             group.pop('_minute_counts', None)
         section['groups'] = sorted(groups, key=lambda g: (-g['count'], g['signature']))
-    coverage["no_access_log"] = not access_found
+    coverage["no_access_log"] = "access" in selected_sections and not access_found
     coverage["access_unparsed_lines"] = access_unparsed
     if access_unparsed and (total == 0 or access_unparsed > total):
         coverage["errors"].append("Formato access.log non riconosciuto su molte righe: adattare il parser.")
@@ -318,6 +322,7 @@ def collect(config, minutes):
         pass
     return {
         "window_minutes": minutes,
+        "sections": sorted(selected_sections),
         "timestamp_utc": reference.isoformat(),
         "access": {"total": total, "statuses": dict(counts), "filtered_requests": filtered,
                    "known_bot_user_agent_hits": bot_hits, "top_paths": paths.most_common(15),
@@ -347,7 +352,7 @@ def run(config):
             job = reply.get("job")
             if job:
                 print(f"[agent] job {job['id']}: {job['kind']}", flush=True)
-                snapshot = collect(config, int(job["minutes"]))
+                snapshot = collect(config, int(job["minutes"]), job.get("sections"))
                 api(config, "/api/agent/result", "POST", {"job_id": job["id"], "data": snapshot})
                 print(f"[agent] job {job['id']} inviato, richieste={snapshot['access']['total']}", flush=True)
         except Exception as exc:
