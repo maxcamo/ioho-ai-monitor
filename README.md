@@ -193,3 +193,23 @@ python3 -m pytest -q tests
 - Grafici storico per server, riconoscimento ricorrenze, snapshot processi più frequenti.
 - Accesso console con utenti e audit trail/SSO, confidenze calibrate su esempi reali.
 - Sistema d'avviso push in UI/email distinto dai trigger, limiti di costo AI per server/tenant.
+
+## v0.4 — Diagnosi istantanea access.log (5/10 minuti)
+
+La pagina incidente riporta richieste nelle finestre 5 e 10 minuti, IP e URL piu attivi, top IP x URL, filtri Magento, risposte 403/410/429/444, ritmo per minuto e indicazioni sul campionamento incompleto.
+
+Un picco, un User-Agent bot o risposte 403/410 non dimostrano da soli un attacco. Gli IP X-Forwarded-For non sono affidabili se il proxy non ne convalida l'origine. Correlare con CPU Zabbix e processi.
+
+Per testare manualmente senza fingere un allarme CPU:
+
+```bash
+clear
+cd /opt/ioho-ai-monitor
+docker compose exec -T api python manage.py run-traffic pro-service.ioho.com
+```
+
+Il job traffic_check raccoglie 20 minuti di evidenze e mostra separatamente gli ultimi 5 e 10 minuti; il comando deduplica gli ultimi tre minuti.
+
+Distribuzione: aggiornare la console FastAPI/worker (git pull e rebuild) e copiare ENTRAMBI i file agent/collector.py e agent/traffic_analysis.py nella stessa directory /opt/ioho-agent/ su ciascun server. Riavviare soltanto il servizio ioho-ai-agent.
+
+Durante gli incidenti vengono letti per default fino a 16 MB per file access e 40 MB di log totali (tetti 24/60 MB, configurabili tramite incident_access_bytes e incident_total_bytes). Gli audit notturni mantengono i limiti esistenti. I payload all'API AI escludono le associazioni IP-URL.
