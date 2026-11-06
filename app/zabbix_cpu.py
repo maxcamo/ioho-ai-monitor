@@ -39,6 +39,10 @@ def _choose_cpu_item(items, preferred=""):
     if preferred:
         match = next((i for i in usable if i.get("key_") == preferred), None)
         if match:
+            # system.cpu.util è totale SOLO se l'item dipendente si chiama
+            # CPU utilization; come agent item senza template è CPU user.
+            if preferred == "system.cpu.util" and "cpu utilization" not in str(match.get("name", "")).lower():
+                return None, False
             return match, preferred.replace(" ", "").lower() in (
                 "system.cpu.util[,idle]", "system.cpu.util[all,idle]")
         return None, False
