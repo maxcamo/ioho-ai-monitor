@@ -9,6 +9,7 @@ fi
 id ioho-monitor >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin ioho-monitor
 install -d -m 0755 /opt/ioho-agent
 install -o root -g root -m 0644 "$ROOT/agent/collector.py" /opt/ioho-agent/collector.py
+install -o root -g root -m 0644 "$ROOT/agent/traffic_analysis.py" /opt/ioho-agent/traffic_analysis.py
 chown ioho-monitor:ioho-monitor /etc/ioho-ai-agent.json
 chmod 0600 /etc/ioho-ai-agent.json
 install -o root -g root -m 0644 "$ROOT/agent/ioho-ai-agent.service" /etc/systemd/system/ioho-ai-agent.service
