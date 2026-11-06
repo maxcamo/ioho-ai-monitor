@@ -372,3 +372,37 @@ pulsante, senza produrre traffico di test sul sito.
 righe `[scheduler] access` e `[scheduler] app`, e la sezione
 "Attività recente" nella dashboard. I cinque server esistenti
 continuano a essere gestiti dalle registrazioni già presenti nel DB.
+
+
+## v0.11 — Ritocchi grafici alla tabella "Stato per tipologia"
+
+Nella **panoramica** il nome tecnico Zabbix viene nascosto (resta
+disponibile nella pagina del singolo server). Il badge di stato
+`CRITICAL / WARNING / OK / NON VERIFICATO` resta cliccabile e porta al
+rapporto. Accanto compare un pulsante **solo icona di aggiornamento**
+con tooltip e nome accessibile per rilanciare il controllo manuale
+corrispondente. Il testo "Ultimo aggiornamento:" sparisce: viene mostrata
+solo la data con ora UTC, in piccolo. Non viene cambiato il dettaglio
+del report o il comportamento dei job.
+
+L'elenco server viene **ordinato automaticamente per lo stato peggiore
+delle due tipologie**: Critical, Warning, OK, quindi Non verificato /
+Da aggiornare. A parita' di gravita' si usa l'ordine alfabetico del nome.
+Gli altri dati e gli stati sono calcolati come nelle versioni precedenti.
+
+Il valore della CPU Zabbix **in questa tabella** non e' ancora implementato:
+rimane nel rapporto Accessi e verra' aggiunto in una versione successiva,
+come concordato.
+
+**Installazione centrale (solo API, non tocca il worker):**
+
+```bash
+clear
+git -C /tmp/ioho-ai-monitor pull --ff-only origin main
+test "$(cat /tmp/ioho-ai-monitor/VERSION)" = "0.11"
+bash /tmp/ioho-ai-monitor/deploy/update-central-v011.sh
+```
+
+Lo script crea un backup del codice toccato, ricostruisce e riavvia solo
+il servizio `api`, poi verifica `/health`. Database, token,
+integrazione HTTPS Zabbix, scheduler e agenti sono invariati.
