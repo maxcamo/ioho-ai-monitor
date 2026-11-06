@@ -2,8 +2,9 @@
 import argparse
 import json
 import secrets
+from datetime import timedelta
 from sqlalchemy import select
-from app.db import Session, Server, Job, init_db, token_digest
+from app.db import Session, Server, Job, init_db, token_digest, utcnow
 
 
 def main():
@@ -14,6 +15,8 @@ def main():
     add.add_argument("zabbix_host", help="Nome host TECNICO Zabbix, non il nome visibile")
     run = subs.add_parser("run-audit", help="Accoda un audit manuale")
     run.add_argument("name")
+    traffic = subs.add_parser("run-traffic", help="Fotografia immediata access.log: ultimi 5/10 minuti, senza simulare CPU alta")
+    traffic.add_argument("name")
     subs.add_parser("list-servers")
     args = parser.parse_args()
     init_db()
@@ -25,12 +28,29 @@ def main():
             db.add(Server(name=args.name, zabbix_host=args.zabbix_host, token_hash=token_digest(token)))
             print(json.dumps({"server": args.name, "zabbix_host": args.zabbix_host, "agent_token": token}, indent=2))
             print("ATTENZIONE: salva ora il token in modo sicuro, non sarà mostrato di nuovo.")
-        elif args.command == "run-audit":
+        elif args.command in ("run-audit", "run-traffic"):
             server = db.scalar(select(Server).where(Server.name == args.name))
             if not server:
                 parser.error("Server non registrato")
-            db.add(Job(server_id=server.id, kind="nightly", incident_name="Audit manuale", context={"manual": True}, state="queued"))
-            print(f"Audit manuale accodato: {server.name}")
+            if args.command == "run-traffic":
+                recent = db.scalar(select(Job).where(
+                    Job.server_id == server.id,
+                    Job.kind == "traffic_check",
+                    Job.created_at >= utcnow() - timedelta(minutes=3),
+                    Job.state.in_(["queued", "leased", "collected", "processing", "done"])
+                ).order_by(Job.id.desc()))
+                if recent:
+                    print(f"Analisi traffico recente gia presente: job #{recent.id} ({recent.state})")
+                    return
+                job = Job(server_id=server.id, kind="traffic_check",
+                          incident_name="Analisi traffico HTTP 5/10 minuti",
+                          context={"manual": True}, state="queued")
+            else:
+                job = Job(server_id=server.id, kind="nightly",
+                          incident_name="Audit manuale", context={"manual": True}, state="queued")
+            db.add(job)
+            db.flush()
+            print(f"Analisi accodata: {server.name} | job #{job.id} | tipo {job.kind}")
         elif args.command == "list-servers":
             servers = db.scalars(select(Server).order_by(Server.name)).all()
             for s in servers:
