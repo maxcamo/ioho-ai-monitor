@@ -138,8 +138,9 @@ def run_one():
         job.error = None
         job.updated_at = utcnow()
         s = db.get(Server, job.server_id)
-        s.last_status = diag["severity"]
-        s.last_analysis_at = utcnow()
+        if kind not in ("access_check", "app_check"):
+            s.last_status = diag["severity"]
+            s.last_analysis_at = utcnow()
     print(f"[analysis] job={job_id} {diag['severity']} AI={ai_used}", flush=True)
     return True
 
